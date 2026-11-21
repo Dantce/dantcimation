@@ -40,6 +40,9 @@
         ],
         "client": [
             "mchorse.bbs_mod.BBSModClient"
+        ],
+        "bbs-client-addon": [
+            "dantcimation.DantcimationClient"
         ]
     },
     "mixins": [

@@ -12,6 +12,7 @@ public class StyleCoreChecks
     {
         grid();
         timing();
+        curves();
 
         System.out.println(checks + " checks, " + failures + " failures");
 
@@ -64,6 +65,17 @@ public class StyleCoreChecks
 
         check(!has(validate(Cadence.ACTING, 0, 3, 6, 9, 12, 15, 18, 21, 24, 30), "T5"), "8 poses then a hold is fine");
         check(has(validate(Cadence.ACTING, 0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 33), "T5"), "9 poses without a hold is flagged");
+    }
+
+    private static void curves()
+    {
+        float[] ticks = {FrameGrid.toTick(0), FrameGrid.toTick(3), FrameGrid.toTick(6), FrameGrid.toTick(30)};
+
+        check(CurveValidator.validate(ticks, new String[] {"constant", "constant", "constant", "linear"}).isEmpty(), "stepped keys are clean, and the last key is not judged");
+        check(has(CurveValidator.validate(ticks, new String[] {"constant", "constant", "back_out", "constant"}), "C1"), "a 24 frame eased pose is flagged");
+        check(CurveValidator.validate(ticks, new String[] {"exp_inout", "constant", "constant", "constant"}).isEmpty(), "a 3 frame eased impact is allowed");
+        check(has(CurveValidator.validate(ticks, new String[] {"linear", "constant", "constant", "constant"}), "C3"), "linear is banned on characters");
+        check(has(CurveValidator.validate(ticks, new String[] {"constant", "elastic_out", "constant", "constant"}), "C3"), "elastic is banned on characters");
     }
 
     private static List<Violation> validate(Cadence cadence, int... frames)
