@@ -20,7 +20,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_FILE = process.env.DANTCIMATION_BRIDGE_FILE || join(HERE, "..", "run", "config", "bbs", "dantcimation", "bridge.json");
 const GUIDE_FILE = join(HERE, "guide.md");
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
-const SERVER = { name: "dantcimation", version: "0.1.0" };
+const SERVER = { name: "dantcimation", version: "0.2.0" };
 
 const INSTRUCTIONS = "Dantcimation animates characters in the BBS film that is open in Minecraft's film editor. "
     + "Call get_animation_guide once before animating: it holds the timing rules, the rig's rotation "
@@ -178,6 +178,57 @@ const TOOLS = [
         "Remove the keys of one form property in a frame range.",
         { actor, property: { type: "string" }, ...range }, ["actor", "property"],
         async (a) => json(await bridge("POST", `/film/actors/${a.actor}/property-keys/clear`, pick(a, "property", "fromFrame", "toFrame")))),
+
+    tool("get_camera",
+        "The film's camera: its clips in order (index, type, start frame, length in frames, layer, and the clip as BBS saves it), and where the editor's view is now (x, y, z, yaw, pitch, roll, fov).",
+        {}, [],
+        async () => json(await bridge("GET", "/film/camera"))),
+
+    tool("add_camera_clip",
+        "Add a clip to the film's camera. With no arguments it locks the camera where the editor's view is now, for the whole film: do this once the person has framed the shot. Clips that follow one another on the same layer are cuts. A clip starts and ends on a whole tick (20 a second), so a cut lands exactly only on frames that are multiples of 6; the answer says where it landed.",
+        {
+            type: { type: "string", description: "A BBS camera clip type: idle (holds still, the default), shake, dolly, path, look, orbit and others. Used when 'clip' is not given." },
+            clip: { type: "object", description: "A whole clip as BBS saves it, with its 'type' (such as bbs:idle); get_camera shows the shape. Used instead of 'type'." },
+            frame: { ...frame, description: "Where the clip starts. Default 0." },
+            frames: { type: "integer", minimum: 1, description: "How long it lasts. Default: to the end of the film." },
+            layer: { type: "integer", minimum: 0, description: "Default: the first layer free at that time. A clip on a higher layer acts on top of the ones below." },
+            fromView: { type: "boolean", description: "Fill the clip from the editor's view. Default true when made by 'type', false when 'clip' is given." },
+        }, [],
+        async (a) => json(await bridge("POST", "/film/camera/clips", a))),
+
+    tool("add_camera_move",
+        "Add a camera move: keys in film frames that the camera eases between. A key sets any of x, y, z, yaw, pitch, roll, fov; a channel no key sets is left to the clip underneath, so keying only fov zooms the existing shot. The move becomes one keyframe clip from the first key to the last.",
+        {
+            keys: {
+                type: "array", minItems: 1,
+                items: {
+                    type: "object",
+                    properties: {
+                        frame,
+                        x: { type: "number" }, y: { type: "number" }, z: { type: "number" },
+                        yaw: { type: "number" }, pitch: { type: "number" }, roll: { type: "number" },
+                        fov: { type: "number", description: "Field of view in degrees. Smaller is tighter." },
+                        fromView: { type: "boolean", description: "Take everything this key does not set from the editor's view." },
+                        ease: { type: "string", description: "How the camera leaves this key for the next: cubic_inout (default), cubic_out, quart_out, quint_out, exp_out, back_out, sine_inout, or constant for a cut. linear and elastic are refused." },
+                    },
+                    required: ["frame"],
+                },
+            },
+            frame: { ...frame, description: "Where the clip starts. Default: the first key." },
+            frames: { type: "integer", minimum: 1, description: "How long the clip lasts. Default: to the last key." },
+            layer: { type: "integer", minimum: 0 },
+        }, ["keys"],
+        async (a) => json(await bridge("POST", "/film/camera/moves", a))),
+
+    tool("remove_camera_clip",
+        "Remove one clip from the film's camera. The clips after it move down one index.",
+        { clip: { type: "integer", minimum: 0, description: "The clip's index, from get_camera." } }, ["clip"],
+        async (a) => json(await bridge("POST", `/film/camera/clips/${a.clip}/remove`, {}))),
+
+    tool("clear_camera",
+        "Remove every clip from the film's camera.",
+        {}, [],
+        async () => json(await bridge("POST", "/film/camera/clear", {}))),
 
     tool("seek",
         "Move the film editor's playhead, so the person watching sees that frame.",

@@ -36,7 +36,7 @@ public class Bridge implements BridgeServer.Handler
     public static final int DEFAULT_PORT = 47110;
 
     /** Bumped whenever a request or an answer changes in a way a tool cannot survive. */
-    public static final int VERSION = 3;
+    public static final int VERSION = 4;
 
     private static final int TIMEOUT_SECONDS = 10;
 
@@ -248,6 +248,11 @@ public class Bridge implements BridgeServer.Handler
             return FilmInspector.describe(film());
         }
 
+        if (path.equals("/film/camera"))
+        {
+            return CameraEditor.describe(panel(), film());
+        }
+
         if (path.equals("/film/validate"))
         {
             Cadence cadence = Cadence.byKey(request.query().getOrDefault("cadence", Cadence.ACTING.key));
@@ -297,6 +302,28 @@ public class Bridge implements BridgeServer.Handler
         if (path.equals("/film/seek"))
         {
             return FilmEditor.seek(panel, body);
+        }
+
+        if (path.equals("/film/camera/clips"))
+        {
+            return CameraEditor.addClip(panel, film, body);
+        }
+
+        if (path.equals("/film/camera/moves"))
+        {
+            return CameraEditor.addMove(panel, film, body);
+        }
+
+        if (path.equals("/film/camera/clear"))
+        {
+            return CameraEditor.clear(panel, film);
+        }
+
+        String clip = matchIndexed(path, "/film/camera/clips/", "/remove");
+
+        if (clip != null)
+        {
+            return CameraEditor.removeClip(panel, film, Integer.parseInt(clip));
         }
 
         String[] actor = matchActor(path);
@@ -354,6 +381,27 @@ public class Bridge implements BridgeServer.Handler
         }
 
         return new String[] {index, rest.substring(slash + 1)};
+    }
+
+    /** The index out of {@code <prefix><index><suffix>}; {@code null} when the path is not of that shape. */
+    private static String matchIndexed(String path, String prefix, String suffix)
+    {
+        if (!path.startsWith(prefix) || !path.endsWith(suffix) || path.length() <= prefix.length() + suffix.length())
+        {
+            return null;
+        }
+
+        String index = path.substring(prefix.length(), path.length() - suffix.length());
+
+        for (int i = 0; i < index.length(); i++)
+        {
+            if (!Character.isDigit(index.charAt(i)))
+            {
+                return null;
+            }
+        }
+
+        return index.length() > 9 ? null : index;
     }
 
     private static Film film()

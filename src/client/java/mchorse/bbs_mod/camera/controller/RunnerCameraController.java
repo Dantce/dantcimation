@@ -5,6 +5,7 @@ import mchorse.bbs_mod.BBSSettings;
 import mchorse.bbs_mod.camera.Camera;
 import mchorse.bbs_mod.camera.clips.CameraClip;
 import mchorse.bbs_mod.camera.data.Position;
+import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.film.controller.UIFilmController;
 import mchorse.bbs_mod.utils.clips.Clip;
@@ -101,11 +102,24 @@ public class RunnerCameraController extends CameraWorkCameraController
             this.cursorFraction = 0F;
             this.lastTransition = 0F;
 
-            if (this.ticks >= this.context.clips.calculateDuration())
+            if (this.ticks >= this.getDuration())
             {
                 this.setPlaying(false);
             }
         }
+    }
+
+    /**
+     * How long playback runs: the film's length, which counts the actors' keyframes as well as
+     * the camera's clips. Going by the camera alone, a film that is animated but has no camera
+     * clip yet stopped on the tick it was started.
+     */
+    private int getDuration()
+    {
+        Film film = this.panel.getData();
+        int duration = this.context.clips.calculateDuration();
+
+        return film == null ? duration : Math.max(duration, film.calculateDuration());
     }
 
     @Override

@@ -69,13 +69,26 @@ Specification".
   `impact_lines`. White on transparent, tinted by the billboard's colour. Drawn by
   `tools/dantcimation/impact_textures.py`.
 
-## MCP server (written 21 November, not yet run against a real client)
+## MCP server
 
 `mcp/server.mjs`: one dependency-free Node file that speaks MCP over stdio and turns each of
-its 18 tools into a bridge request. `mcp/guide.md` is the animation guide it serves to the
-model through `get_animation_guide`. `node mcp/test.mjs` passes against a stand-in bridge; it
-has not yet been connected to a real MCP client with the real game. Setup is in
-`mcp/README.md`.
+its tools into a bridge request. `mcp/guide.md` is the animation guide it serves to the model
+through `get_animation_guide`. `node mcp/test.mjs` checks it against a stand-in bridge. Verified
+on 21 November with the Claude desktop app as the client and the real game: status, film,
+validation and a rendered contact sheet all came back. Setup is in `mcp/README.md`.
+
+## Camera (bridge version 4; written 21 November, not yet run in the game)
+
+- `GET /film/camera` lists the camera's clips and the editor's view (with fov).
+- `POST /film/camera/clips` adds a clip by `type` (an idle clip at the current view by default,
+  for the whole film) or as `clip` data the way BBS saves it. `.../clips/<i>/remove` and
+  `/film/camera/clear` take clips off.
+- `POST /film/camera/moves` builds a keyframe clip from keys in film frames, each with an
+  `ease`; linear and elastic are refused (rule C3).
+- **Playback without a camera clip**: `RunnerCameraController` now runs for the film's length
+  instead of the camera's, so an animated film with no camera clip plays. This is the second
+  change to BBS's own code.
+- The MCP server has the five matching tools (23 in all).
 
 ## Impact frames: how the first ones were built
 
@@ -113,9 +126,8 @@ On the shadow-boxing film, each punch gets 2 or 3 frames on 1s, all through the 
 ## Next
 
 1. Turn the impact-frame build into one recipe a tool can call with a list of contact frames.
-2. Connect a real MCP client to `mcp/server.mjs` and animate a shot through it end to end.
-3. Camera clips through the bridge (a film still has no camera of its own unless one is made
-   in the editor), pose library, action recipes, bake to stepped keys, the remaining validator
+2. Run bridge version 4 in the game: lock a shot, add a move, check playback without a clip.
+3. Animate a whole shot through the MCP tools alone, from a fresh chat. Pose library, action recipes, bake to stepped keys, the remaining validator
    rules. See section 13.3 of the style guide.
 
 ## Notes for the write endpoints
@@ -148,8 +160,6 @@ Read from the BBS source on the `1.21.11` branch; this is what the write endpoin
   class that touches Minecraft or BBS needs a local `runClient` to confirm it.
 - Synthetic mouse and keyboard input does not reach the Minecraft window, so the game itself
   has to be driven by a person; the bridge is how a program reaches it.
-- A film without a camera clip does not play in the editor: playback stops at the end of the
-  camera track. One has to be added by hand until the bridge can make camera clips.
 - `/render` only shows the film while the film editor is open on screen.
 - A film without a camera clip is seen from wherever the editor's camera happens to be, so an
   effect composed toward the lens (an impact backdrop) is only right from that spot.

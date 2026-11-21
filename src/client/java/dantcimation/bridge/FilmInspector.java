@@ -121,8 +121,8 @@ public final class FilmInspector
         json.addProperty("kind", kind);
         json.addProperty("id", id);
         json.addProperty("keys", keyframes.size());
-        json.addProperty("firstFrame", FrameGrid.toFrame(((Keyframe<?>) keyframes.get(0)).getTick()));
-        json.addProperty("lastFrame", FrameGrid.toFrame(((Keyframe<?>) keyframes.get(keyframes.size() - 1)).getTick()));
+        json.addProperty("firstFrame", toFrame(((Keyframe<?>) keyframes.get(0)).getTick()));
+        json.addProperty("lastFrame", toFrame(((Keyframe<?>) keyframes.get(keyframes.size() - 1)).getTick()));
 
         tracks.add(json);
     }
@@ -209,6 +209,17 @@ public final class FilmInspector
         }
 
         return track.kind() == TrackKind.PROPERTY && track.subject().startsWith("pose");
+    }
+
+    /** A key's frame: a whole number when the key is on the grid, as every key a tool wrote is. */
+    private static Number toFrame(float tick)
+    {
+        if (FrameGrid.isOnGrid(tick))
+        {
+            return FrameGrid.nearestFrame(tick);
+        }
+
+        return FrameGrid.toFrame(tick);
     }
 
     private static int toFrames(int ticks)

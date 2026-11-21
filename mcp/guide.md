@@ -84,9 +84,27 @@ first poses, render a frame; if you see its back, add 180 to `anchor` r.y in eve
 6. Repeat 3 to 5 until the sheet reads as the action without the description beside it.
 7. Tell the person what is there and what you could not get right.
 
-A film only plays in the editor (Space) if it has a camera clip. If `get_film` reports
-`cameraClips: 0`, ask the person to add one: right-click the timeline, Add, Add clip at
-cursor, Idle, then set its duration to cover the film.
+## Camera
+
+A film without a camera clip is seen from wherever the editor's view happens to be, so nothing
+about the framing is saved. Give every film a camera.
+
+- **Lock the shot.** Ask the person to frame it in the editor, then `add_camera_clip` with no
+  arguments: an idle clip at the current view, for the whole film. Do this before building
+  anything that is aimed at the lens.
+- **Moves ease.** `add_camera_move` takes keys in film frames; each key's `ease` says how the
+  camera leaves it. Use `quart_out` or `cubic_out` for a move that arrives and settles,
+  `cubic_inout` for a drift. `linear` and `elastic` are refused.
+- **Keep the camera alive, but small.** A slow push-in over a hold (fov down 2 to 4 degrees, or
+  a quarter block forward, over 24 to 48 frames) reads as intent. A move the eye has to follow
+  competes with the character.
+- **Punch in on a hit.** Key only `fov` on a layer above the shot: from the shot's fov, down 8
+  to 12 degrees on the contact frame with `constant`, back over 6 to 8 frames with `quart_out`.
+- **Cuts** are clips that follow one another on the same layer. Cut on a frame that is a
+  multiple of 6, or the cut lands on the nearest tick instead.
+- `get_camera` shows each clip as BBS saves it, which is also the shape `add_camera_clip`
+  accepts in `clip` for the types without a tool of their own (`bbs:shake`, `bbs:dolly`,
+  `bbs:orbit`, `bbs:look`).
 
 ## Impact frames
 
@@ -128,4 +146,4 @@ is settled.
 - `render_frames` needs the film editor open on screen; with it closed the picture is stale.
 - A one-frame change can show a frame late on a contact sheet. To check one, render the frames
   on both sides of it.
-- There are no tools yet for cameras, faces or sound.
+- There are no tools yet for faces or sound.

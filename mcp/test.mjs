@@ -110,7 +110,7 @@ check("ping", JSON.stringify((await request("ping")).result) === "{}");
 const list = await request("tools/list");
 const names = list.result.tools.map((entry) => entry.name);
 
-check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 18, names);
+check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 23, names);
 check("every tool has a schema and a description", list.result.tools.every((entry) => entry.inputSchema?.type === "object" && entry.description.length > 20));
 
 const guide = await call("get_animation_guide", {});
@@ -134,6 +134,17 @@ check("set_property_keys posts property and keys", last.url === "/film/actors/1/
 await call("clear_root_keys", { actor: 0, channels: ["pitch"], fromFrame: 1 });
 last = seen.at(-1);
 check("clear_root_keys sends only what was given", JSON.stringify(last.body) === "{\"fromFrame\":1,\"channels\":[\"pitch\"]}", last);
+
+await call("add_camera_clip", {});
+last = seen.at(-1);
+check("add_camera_clip with nothing posts an empty body", last.url === "/film/camera/clips" && JSON.stringify(last.body) === "{}", last);
+
+await call("add_camera_move", { keys: [{ frame: 0, fromView: true }, { frame: 12, fov: 50, ease: "quart_out" }] });
+last = seen.at(-1);
+check("add_camera_move posts the keys", last.url === "/film/camera/moves" && last.body.keys[1].fov === 50, last);
+
+await call("remove_camera_clip", { clip: 2 });
+check("remove_camera_clip names the clip in the path", seen.at(-1).url === "/film/camera/clips/2/remove", seen.at(-1));
 
 await call("validate_film", { cadence: "action" });
 check("validate_film passes the cadence", seen.at(-1).url === "/film/validate?cadence=action", seen.at(-1));
