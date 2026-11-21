@@ -77,7 +77,7 @@ through `get_animation_guide`. `node mcp/test.mjs` checks it against a stand-in 
 on 21 November with the Claude desktop app as the client and the real game: status, film,
 validation and a rendered contact sheet all came back. Setup is in `mcp/README.md`.
 
-## Camera (bridge version 4; written 21 November, not yet run in the game)
+## Camera (bridge version 4; verified in the game 21 November)
 
 - `GET /film/camera` lists the camera's clips and the editor's view (with fov).
 - `POST /film/camera/clips` adds a clip by `type` (an idle clip at the current view by default,
@@ -88,7 +88,20 @@ validation and a rendered contact sheet all came back. Setup is in `mcp/README.m
 - **Playback without a camera clip**: `RunnerCameraController` now runs for the film's length
   instead of the camera's, so an animated film with no camera clip plays. This is the second
   change to BBS's own code.
-- The MCP server has the five matching tools (23 in all).
+- The MCP server has the five matching tools. Through them an fov punch-in was laid over the
+  locked shot of the shadow-boxing film, on a layer above the idle clip.
+
+## Keys lead their frame (bridge version 5; written 21 November, not yet run in the game)
+
+BBS's `KeyframeChannel.findRawSegment` lets a key take effect only once the playhead is past
+it, with an exception for whole ticks. A key at tick 22.5 sampled at tick 22.5 still shows the
+key before. A 24 fps export samples exactly the frame ticks, so keys written on them would show
+a frame late or on time depending on float error: the opposite of a stepped cadence. It is also
+why contact sheets showed one-frame effects a frame late.
+
+`FrameGrid.toKeyTick` now writes every key 0.01 tick before its frame (frame 0 stays at 0);
+`toTick` is still the frame's own time, used for seeking. `POST /film/regrid` (MCP:
+`snap_keys_to_grid`) moves existing on-frame keys to the lead tick.
 
 ## Impact frames: how the first ones were built
 
@@ -126,7 +139,9 @@ On the shadow-boxing film, each punch gets 2 or 3 frames on 1s, all through the 
 ## Next
 
 1. Turn the impact-frame build into one recipe a tool can call with a list of contact frames.
-2. Run bridge version 4 in the game: lock a shot, add a move, check playback without a clip.
+2. Run bridge version 5 in the game: regrid the shadow-boxing film, then check on a contact
+   sheet that frame 26 shows the first impact frame, not frame 27. Check playback of a film
+   with no camera clip.
 3. Animate a whole shot through the MCP tools alone, from a fresh chat. Pose library, action recipes, bake to stepped keys, the remaining validator
    rules. See section 13.3 of the style guide.
 

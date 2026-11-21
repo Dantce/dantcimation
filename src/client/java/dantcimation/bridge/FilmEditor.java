@@ -495,6 +495,61 @@ public final class FilmEditor
         return false;
     }
 
+    /**
+     * Move every key that sits on a frame to the tick keys are written at (see
+     * {@link FrameGrid#toKeyTick}). Keys written before that tick was settled on, or placed by
+     * hand in the editor, sit exactly on their frame, where an export shows them a frame late
+     * or not by chance. Keys that are off the grid are left for the validator to report.
+     */
+    public static JsonObject regrid(UIFilmPanel panel, Film film)
+    {
+        int[] moved = new int[1];
+
+        for (Replay replay : film.replays.getList())
+        {
+            BaseValue.edit(replay, (value) ->
+            {
+                for (KeyframeChannel<?> channel : replay.keyframes.getChannels())
+                {
+                    moved[0] += regrid(channel);
+                }
+
+                for (KeyframeChannel<?> channel : replay.properties.tracks.values())
+                {
+                    moved[0] += regrid(channel);
+                }
+            });
+        }
+
+        panel.replayEditor.updateChannelsList();
+
+        JsonObject json = new JsonObject();
+
+        json.addProperty("moved", moved[0]);
+
+        return json;
+    }
+
+    private static int regrid(KeyframeChannel<?> channel)
+    {
+        int moved = 0;
+
+        for (Keyframe<?> keyframe : channel.getKeyframes())
+        {
+            float tick = keyframe.getTick();
+            float target = FrameGrid.snap(tick);
+
+            if (FrameGrid.isOnGrid(tick) && tick != target)
+            {
+                keyframe.setTick(target);
+
+                moved += 1;
+            }
+        }
+
+        return moved;
+    }
+
     /** Move the editor's playhead, so the person watching sees the frame a tool is working on. */
     public static JsonObject seek(UIFilmPanel panel, JsonObject body)
     {
@@ -519,7 +574,7 @@ public final class FilmEditor
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void insertConstant(KeyframeChannel channel, int frame, Object value)
     {
-        int index = channel.insert(FrameGrid.toTick(frame), value);
+        int index = channel.insert(FrameGrid.toKeyTick(frame), value);
 
         channel.get(index).getInterpolation().setInterp(Interpolations.CONST);
     }

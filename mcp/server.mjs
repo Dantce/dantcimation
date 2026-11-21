@@ -20,7 +20,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_FILE = process.env.DANTCIMATION_BRIDGE_FILE || join(HERE, "..", "run", "config", "bbs", "dantcimation", "bridge.json");
 const GUIDE_FILE = join(HERE, "guide.md");
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
-const SERVER = { name: "dantcimation", version: "0.2.0" };
+const SERVER = { name: "dantcimation", version: "0.3.0" };
 
 const INSTRUCTIONS = "Dantcimation animates characters in the BBS film that is open in Minecraft's film editor. "
     + "Call get_animation_guide once before animating: it holds the timing rules, the rig's rotation "
@@ -229,6 +229,11 @@ const TOOLS = [
         "Remove every clip from the film's camera.",
         {}, [],
         async () => json(await bridge("POST", "/film/camera/clear", {}))),
+
+    tool("snap_keys_to_grid",
+        "Move every key in the film that sits on a frame to the exact tick the tools write keys at (a hair before the frame, so the frame shows it). Needed once for films keyed by hand in the editor or by an older version of the mod; harmless to repeat. Returns how many keys moved.",
+        {}, [],
+        async () => json(await bridge("POST", "/film/regrid", {}))),
 
     tool("seek",
         "Move the film editor's playhead, so the person watching sees that frame.",

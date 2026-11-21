@@ -144,6 +144,6 @@ is settled.
 ## Limits to be honest about
 
 - `render_frames` needs the film editor open on screen; with it closed the picture is stale.
-- A one-frame change can show a frame late on a contact sheet. To check one, render the frames
-  on both sides of it.
+- If `validate_film` passes but a contact sheet shows poses one frame late, the film was keyed
+  before keys were given their lead: call `snap_keys_to_grid` once.
 - There are no tools yet for faces or sound.

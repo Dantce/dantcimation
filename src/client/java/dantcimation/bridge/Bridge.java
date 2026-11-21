@@ -36,7 +36,7 @@ public class Bridge implements BridgeServer.Handler
     public static final int DEFAULT_PORT = 47110;
 
     /** Bumped whenever a request or an answer changes in a way a tool cannot survive. */
-    public static final int VERSION = 4;
+    public static final int VERSION = 5;
 
     private static final int TIMEOUT_SECONDS = 10;
 
@@ -302,6 +302,11 @@ public class Bridge implements BridgeServer.Handler
         if (path.equals("/film/seek"))
         {
             return FilmEditor.seek(panel, body);
+        }
+
+        if (path.equals("/film/regrid"))
+        {
+            return FilmEditor.regrid(panel, film);
         }
 
         if (path.equals("/film/camera/clips"))

@@ -31,7 +31,19 @@ public class StyleCoreChecks
         check(FrameGrid.isOnGrid(FrameGrid.toTick(1)), "a frame that is not a finite binary fraction is on the grid");
         check(!FrameGrid.isOnGrid(2F), "2 ticks is frame 2.4");
         check(!FrameGrid.isOnGrid(7F), "7 ticks is frame 8.4");
-        check(FrameGrid.snap(2F) == FrameGrid.toTick(2), "2 ticks snaps to frame 2");
+        check(FrameGrid.snap(2F) == FrameGrid.toKeyTick(2), "2 ticks snaps to frame 2");
+        check(FrameGrid.toKeyTick(0) == 0F, "a key of frame 0 is at tick 0");
+        check(FrameGrid.toKeyTick(27) < FrameGrid.toTick(27) && FrameGrid.toKeyTick(27) > FrameGrid.toTick(26), "a key is stored just before its frame");
+        check(FrameGrid.nearestFrame(FrameGrid.toKeyTick(27)) == 27 && FrameGrid.isOnGrid(FrameGrid.toKeyTick(27)), "and still reads as that frame, on the grid");
+
+        boolean leadSurvives = true;
+
+        for (int frame = 1; frame <= 24 * 60 * 20; frame++)
+        {
+            leadSurvives &= FrameGrid.toKeyTick(frame) < FrameGrid.toTick(frame) - 0.001F && FrameGrid.isOnGrid(FrameGrid.toKeyTick(frame));
+        }
+
+        check(leadSurvives, "twenty minutes in, a key is still clear of its frame and on the grid");
 
         boolean allOnGrid = true;
 

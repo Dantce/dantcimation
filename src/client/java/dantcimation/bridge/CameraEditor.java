@@ -152,7 +152,8 @@ public final class CameraEditor
         for (JsonElement element : keys)
         {
             JsonObject key = element.getAsJsonObject();
-            float tick = (float) (FrameGrid.toTickExact(getFrame(key, "frame")) - clip.tick.get());
+            /* A clip's keys count from the clip's start */
+            float tick = Math.max(0F, FrameGrid.toKeyTick(getFrame(key, "frame")) - clip.tick.get());
             IInterp ease = getEase(key);
             boolean fromView = getBoolean(key, "fromView");
 
