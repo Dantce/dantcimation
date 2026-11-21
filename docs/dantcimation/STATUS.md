@@ -28,13 +28,21 @@ Specification".
   refuses requests without the token, and reads the open film (tested on a film with one camera
   clip and no actors).
 
+## Written, not yet run in the game
+
+- **Write endpoints** (`FilmEditor`): `POST /film/actors`, `POST /film/actors/<i>/pose-keys`,
+  `POST /film/actors/<i>/root-keys`, `POST /film/actors/<i>/pose-keys/clear`, `POST /film/seek`,
+  plus `GET /film/actors/<i>/rig` and `GET /models`. Keys are always constant and on the frame
+  grid; rotations are sent in degrees. Type-checked against stubs of the BBS signatures, which
+  is not the same as a real build.
+- **Same-origin requests**: the server now accepts an `Origin` that is its own address, so a
+  browser tab on the bridge can POST to it.
+
 ## Next
 
-1. **Write endpoints on the bridge**: add an actor, write pose keys, write position keys.
-2. **Let a same-origin page POST**: the server refuses any request with an `Origin` header;
-   allow the bridge's own origin so it can be exercised from a browser tab.
-3. **MCP server**: a small separate process that exposes the bridge as MCP tools.
-4. Pose library, action recipes, bake to stepped keys, contact-sheet rendering, the remaining
+1. Run the write endpoints in the game and fix what the real build finds.
+2. **MCP server**: a small separate process that exposes the bridge as MCP tools.
+3. Pose library, action recipes, bake to stepped keys, contact-sheet rendering, the remaining
    validator rules, camera tools. See section 13.3 of the style guide.
 
 ## Notes for the write endpoints

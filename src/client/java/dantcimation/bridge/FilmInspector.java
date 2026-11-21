@@ -34,17 +34,18 @@ public final class FilmInspector
     private FilmInspector()
     {}
 
-    /** The film open in the film editor, or {@code null} when the editor has none. */
-    public static Film getOpenFilm()
+    /** The film editor, or {@code null} when BBS's dashboard has not been opened yet. */
+    public static UIFilmPanel getPanel()
     {
         UIDashboard dashboard = BBSModClient.getDashboardIfCreated();
 
-        if (dashboard == null)
-        {
-            return null;
-        }
+        return dashboard == null ? null : dashboard.getPanel(UIFilmPanel.class);
+    }
 
-        UIFilmPanel panel = dashboard.getPanel(UIFilmPanel.class);
+    /** The film open in the film editor, or {@code null} when the editor has none. */
+    public static Film getOpenFilm()
+    {
+        UIFilmPanel panel = getPanel();
 
         return panel == null ? null : panel.getData();
     }

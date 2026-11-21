@@ -19,8 +19,9 @@ import java.util.concurrent.Executors;
  * The door an outside process uses to reach the mod: a deliberately small HTTP server.
  *
  * <p>It only listens on the loopback address, answers nothing without the session token, and
- * turns away anything a web page could send (a request carrying an {@code Origin}), so having
- * the game open does not open the films to the network or to the browser.</p>
+ * turns away anything another web page could send (a request carrying a foreign
+ * {@code Origin}), so having the game open does not open the films to the network or to the
+ * browser.</p>
  *
  * <p>It is written on a plain {@link ServerSocket} rather than the JDK's HTTP server, because
  * launchers ship trimmed Java runtimes and that module is not guaranteed to be in them. It knows
@@ -174,7 +175,7 @@ public class BridgeServer
         String path = question < 0 ? target : target.substring(0, question);
         Map<String, String> query = parseQuery(question < 0 ? "" : target.substring(question + 1));
 
-        if (headers.containsKey("origin"))
+        if (!this.isOwnOrigin(headers.get("origin")))
         {
             throw new BadRequest(403, "Requests from web pages are not accepted");
         }
@@ -185,6 +186,22 @@ public class BridgeServer
         }
 
         return this.handler.handle(new Request(parts[0].toUpperCase(Locale.ROOT), path, query, readBody(input, headers)));
+    }
+
+    /**
+     * A browser names the page a request comes from, and no page can forge that. Only a page
+     * this server served itself may talk to it; anything without an origin is not a browser.
+     */
+    private boolean isOwnOrigin(String origin)
+    {
+        if (origin == null)
+        {
+            return true;
+        }
+
+        int port = this.socket.getLocalPort();
+
+        return origin.equals("http://127.0.0.1:" + port) || origin.equals("http://localhost:" + port);
     }
 
     private boolean isAuthorized(Map<String, String> headers, Map<String, String> query)
@@ -338,6 +355,8 @@ public class BridgeServer
 
     private static class BadRequest extends Exception
     {
+        private static final long serialVersionUID = 1L;
+
         public final int status;
 
         public BadRequest(int status, String message)
