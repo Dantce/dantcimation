@@ -91,7 +91,7 @@ validation and a rendered contact sheet all came back. Setup is in `mcp/README.m
 - The MCP server has the five matching tools. Through them an fov punch-in was laid over the
   locked shot of the shadow-boxing film, on a layer above the idle clip.
 
-## Keys lead their frame (bridge version 5; written 21 November, not yet run in the game)
+## Keys lead their frame (bridge version 5; verified in the game 21 November)
 
 BBS's `KeyframeChannel.findRawSegment` lets a key take effect only once the playhead is past
 it, with an exception for whole ticks. A key at tick 22.5 sampled at tick 22.5 still shows the
@@ -101,7 +101,10 @@ why contact sheets showed one-frame effects a frame late.
 
 `FrameGrid.toKeyTick` now writes every key 0.01 tick before its frame (frame 0 stays at 0);
 `toTick` is still the frame's own time, used for seeking. `POST /film/regrid` (MCP:
-`snap_keys_to_grid`) moves existing on-frame keys to the lead tick.
+`snap_keys_to_grid`) moves existing on-frame keys to the lead tick. On the shadow-boxing film
+it moved 117 keys, and a contact sheet then showed every impact frame on the frame it was keyed
+for (26 and 27 for the first jab, nothing on 25 or 28). Camera clips are not regridded: a move
+made before this has to be removed and added again.
 
 ## Impact frames: how the first ones were built
 
@@ -139,9 +142,8 @@ On the shadow-boxing film, each punch gets 2 or 3 frames on 1s, all through the 
 ## Next
 
 1. Turn the impact-frame build into one recipe a tool can call with a list of contact frames.
-2. Run bridge version 5 in the game: regrid the shadow-boxing film, then check on a contact
-   sheet that frame 26 shows the first impact frame, not frame 27. Check playback of a film
-   with no camera clip.
+2. Check that a film with no camera clip plays (the `RunnerCameraController` change), and
+   export the shadow-boxing film at 24 fps to confirm the cadence survives the exporter.
 3. Animate a whole shot through the MCP tools alone, from a fresh chat. Pose library, action recipes, bake to stepped keys, the remaining validator
    rules. See section 13.3 of the style guide.
 
