@@ -28,19 +28,40 @@ Specification".
   refuses requests without the token, and reads the open film (tested on a film with one camera
   clip and no actors).
 
-## Written, not yet run in the game
+## Verified in the game (21 November)
 
 - **Write endpoints** (`FilmEditor`): `POST /film/actors`, `POST /film/actors/<i>/pose-keys`,
   `POST /film/actors/<i>/root-keys`, `POST /film/actors/<i>/pose-keys/clear`, `POST /film/seek`,
   plus `GET /film/actors/<i>/rig` and `GET /models`. Keys are always constant and on the frame
-  grid; rotations are sent in degrees. Type-checked against stubs of the BBS signatures, which
-  is not the same as a real build.
-- **Same-origin requests**: the server now accepts an `Origin` that is its own address, so a
-  browser tab on the bridge can POST to it.
+  grid; rotations are sent in degrees. An actor was added to a film and a 12-pose stepped wave
+  was written and played back.
+- **Same-origin requests**: the server accepts an `Origin` that is its own address, so a browser
+  tab on the bridge can POST to it. This is how the endpoints are driven until the MCP server
+  exists.
+
+## Written, not yet run in the game
+
+- **`GET /render`**: the film editor's preview as a PNG, or with `frames=0,9,12` a labelled
+  contact sheet of those frames (`columns`, `width` optional). It moves the playhead, waits
+  for the game to draw, and reads back BBS's own snapshot texture.
+- **Film length counts pose keys**: `Film.calculateDuration` now uses
+  `Replay.getLastKeyframeTick`, which includes property tracks. Before, a film with pose keys
+  and no camera clip was one tick long and would not play. This is the one change to BBS's own
+  code so far.
+
+## Rig conventions (player models, from BBS's shipped poses)
+
+- Arms: `r.x` positive swings the arm forward and up (90 is straight ahead). `r.z` raises it
+  sideways: positive for the right arm, negative for the left (160 is overhead).
+- Legs: `r.x` positive swings the leg forward (90 is sitting).
+- Head: `r.x` positive looks up, `r.y` turns, `r.z` tilts.
+- `low_body`: `r.x` positive leans back, negative leans forward; `r.z` leans sideways.
+- `anchor`: `t.y` negative lowers the whole body (in model pixels).
+- Elbows and knees on `steve_bends`: direction not confirmed yet.
 
 ## Next
 
-1. Run the write endpoints in the game and fix what the real build finds.
+1. Run `/render` in the game; use it to confirm the elbow and knee directions.
 2. **MCP server**: a small separate process that exposes the bridge as MCP tools.
 3. Pose library, action recipes, bake to stepped keys, contact-sheet rendering, the remaining
    validator rules, camera tools. See section 13.3 of the style guide.

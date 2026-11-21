@@ -14,7 +14,6 @@ import mchorse.bbs_mod.settings.values.numeric.ValueInt;
 import mchorse.bbs_mod.settings.values.numeric.ValueLong;
 import mchorse.bbs_mod.utils.categories.Categories;
 import mchorse.bbs_mod.utils.clips.Clips;
-import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 
 import java.time.DateTimeException;
 import java.time.Instant;
@@ -143,7 +142,7 @@ public class Film extends ValueGroup
 
     /**
      * How long this film actually runs: the camera's length, or the last keyframe of any enabled
-     * replay when a take outlives the shot.
+     * replay — on its own channels or on its form's property tracks — when a take outlives the shot.
      *
      * <p>Playback used to end at the camera's duration alone, and ending a playback discards its
      * actors &mdash; a scene authored longer than its camera lost its bodies mid-take. The camera
@@ -160,10 +159,9 @@ public class Film extends ValueGroup
                 continue;
             }
 
-            for (KeyframeChannel<?> channel : replay.keyframes.getChannels())
-            {
-                duration = Math.max(duration, (int) channel.getLength() + 1);
-            }
+            /* Dantcimation: the form's property tracks count too. A take whose only keys are
+             * poses — which is every take a tool writes — was otherwise a film one tick long. */
+            duration = Math.max(duration, (int) replay.getLastKeyframeTick() + 1);
         }
 
         return duration;

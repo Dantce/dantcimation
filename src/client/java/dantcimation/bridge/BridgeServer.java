@@ -301,15 +301,14 @@ public class BridgeServer
 
     private static void write(OutputStream output, Response response) throws IOException
     {
-        byte[] body = response.json().getBytes(StandardCharsets.UTF_8);
         String head = "HTTP/1.1 " + response.status() + " " + reason(response.status()) + "\r\n"
-            + "Content-Type: application/json; charset=utf-8\r\n"
-            + "Content-Length: " + body.length + "\r\n"
+            + "Content-Type: " + response.contentType() + "\r\n"
+            + "Content-Length: " + response.body().length + "\r\n"
             + "Cache-Control: no-store\r\n"
             + "Connection: close\r\n\r\n";
 
         output.write(head.getBytes(StandardCharsets.ISO_8859_1));
-        output.write(body);
+        output.write(response.body());
         output.flush();
     }
 
@@ -325,6 +324,7 @@ public class BridgeServer
             case 409 -> "Conflict";
             case 413 -> "Payload Too Large";
             case 431 -> "Request Header Fields Too Large";
+            case 503 -> "Service Unavailable";
             default -> "Error";
         };
     }
@@ -338,18 +338,24 @@ public class BridgeServer
     public record Request(String method, String path, Map<String, String> query, String body)
     {}
 
-    public record Response(int status, String json)
+    public record Response(int status, String contentType, byte[] body)
     {
         public static Response ok(String json)
         {
-            return new Response(200, json);
+            return new Response(200, "application/json; charset=utf-8", json.getBytes(StandardCharsets.UTF_8));
+        }
+
+        public static Response png(byte[] image)
+        {
+            return new Response(200, "image/png", image);
         }
 
         public static Response error(int status, String message)
         {
             String escaped = message == null ? "" : message.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ").replace("\r", " ");
+            String json = "{\"error\":\"" + escaped + "\"}";
 
-            return new Response(status, "{\"error\":\"" + escaped + "\"}");
+            return new Response(status, "application/json; charset=utf-8", json.getBytes(StandardCharsets.UTF_8));
         }
     }
 

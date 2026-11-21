@@ -7,6 +7,7 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import dantcimation.bridge.BridgeServer.Request;
 import dantcimation.bridge.BridgeServer.Response;
+import dantcimation.bridge.Frames.Frame;
 import dantcimation.style.Cadence;
 import dantcimation.style.FrameGrid;
 import mchorse.bbs_mod.BBSModClient;
@@ -16,10 +17,14 @@ import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * What the bridge answers. Every request is carried over to the client thread before it touches
@@ -34,19 +39,35 @@ public class Bridge implements BridgeServer.Handler
 
     private static final int TIMEOUT_SECONDS = 10;
 
+    /**
+     * How long the game is given to draw a frame after the playhead moved. An unfocused game
+     * draws as few as ten frames a second, so this is a couple of those.
+     */
+    private static final int SETTLE_MILLIS = 250;
+
     @Override
     public Response handle(Request request) throws Exception
     {
         try
         {
-            return CompletableFuture
-                .supplyAsync(() -> this.route(request), MinecraftClient.getInstance())
-                .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (request.method().equals("GET") && request.path().equals("/render"))
+            {
+                return this.render(request);
+            }
+
+            return this.onClient(() -> this.route(request));
         }
         catch (TimeoutException e)
         {
             return Response.error(503, "The game did not answer within " + TIMEOUT_SECONDS + " seconds");
         }
+    }
+
+    private <T> T onClient(Supplier<T> supplier) throws Exception
+    {
+        return CompletableFuture
+            .supplyAsync(supplier, MinecraftClient.getInstance())
+            .get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     private Response route(Request request)
@@ -62,20 +83,139 @@ public class Bridge implements BridgeServer.Handler
 
             return Response.ok(answer.toString());
         }
-        catch (NoFilm e)
+        catch (RuntimeException e)
+        {
+            return toError(e);
+        }
+    }
+
+    private static Response toError(Throwable e)
+    {
+        if (e instanceof NoFilm)
         {
             return Response.error(409, "No film is open. Open one in the BBS film editor first.");
         }
-        catch (IllegalArgumentException | JsonParseException e)
+
+        if (e instanceof IllegalArgumentException || e instanceof JsonParseException)
         {
             /* What the tool sent is wrong, and the message says how */
             return Response.error(400, e.getMessage());
         }
-        catch (IllegalStateException e)
+
+        if (e instanceof IllegalStateException)
         {
             /* The request is fine, the game is not ready for it */
             return Response.error(409, e.getMessage());
         }
+
+        return Response.error(500, e.getClass().getSimpleName() + ": " + e.getMessage());
+    }
+
+    /**
+     * The preview as a picture: what it shows right now, or a contact sheet of the frames asked
+     * for with {@code frames=0,9,12}.
+     *
+     * <p>Unlike every other request this one cannot be answered in a single visit to the client
+     * thread: the playhead has to be moved, the game has to draw the frame, and only then is
+     * there something to read back. So it is run from the bridge thread, which waits in between.</p>
+     */
+    private Response render(Request request) throws Exception
+    {
+        List<Frame> grabbed = new ArrayList<>();
+        int[] frames;
+        int columns;
+        int cellWidth;
+
+        try
+        {
+            frames = parseFrames(request.query().getOrDefault("frames", ""));
+            columns = Integer.parseInt(request.query().getOrDefault("columns", String.valueOf(Math.max(1, Math.min(4, frames.length)))));
+            cellWidth = Integer.parseInt(request.query().getOrDefault("width", String.valueOf(Frames.DEFAULT_CELL_WIDTH)));
+
+            if (columns < 1 || columns > 8 || cellWidth < 64 || cellWidth > 1920)
+            {
+                throw new IllegalArgumentException("'columns' is 1 to 8 and 'width' is 64 to 1920");
+            }
+        }
+        catch (IllegalArgumentException e)
+        {
+            return toError(e);
+        }
+
+        try
+        {
+            if (frames.length == 0)
+            {
+                grabbed.add(this.onClient(FrameGrabber::grab));
+
+                return Response.png(Frames.toPng(Frames.toImage(grabbed.get(0))));
+            }
+
+            int cursor = this.onClient(() -> panel().getCursor());
+
+            for (int frame : frames)
+            {
+                this.onClient(() ->
+                {
+                    panel().setCursor(FrameGrid.toTick(frame));
+
+                    return null;
+                });
+
+                Thread.sleep(SETTLE_MILLIS);
+                grabbed.add(this.onClient(FrameGrabber::grab));
+            }
+
+            this.onClient(() ->
+            {
+                panel().setCursor(cursor);
+
+                return null;
+            });
+        }
+        catch (ExecutionException e)
+        {
+            return toError(e.getCause());
+        }
+
+        return Response.png(Frames.toPng(Frames.sheet(grabbed, frames, columns, cellWidth)));
+    }
+
+    private static int[] parseFrames(String list)
+    {
+        if (list.isBlank())
+        {
+            return new int[0];
+        }
+
+        String[] parts = list.split(",");
+
+        if (parts.length > Frames.MAX_FRAMES)
+        {
+            throw new IllegalArgumentException("At most " + Frames.MAX_FRAMES + " frames a sheet");
+        }
+
+        int[] frames = new int[parts.length];
+
+        for (int i = 0; i < parts.length; i++)
+        {
+            frames[i] = Integer.parseInt(parts[i].trim());
+
+            if (frames[i] < 0)
+            {
+                throw new IllegalArgumentException("Frames are not negative");
+            }
+        }
+
+        return frames;
+    }
+
+    /** The film editor, with a film in it. */
+    private static UIFilmPanel panel()
+    {
+        film();
+
+        return FilmInspector.getPanel();
     }
 
     private JsonObject get(Request request)
