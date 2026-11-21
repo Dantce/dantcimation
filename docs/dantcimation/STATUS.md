@@ -50,7 +50,7 @@ Specification".
 - **A shadow-boxing sequence** on 2s (28 poses, 98 frames: jab, jab-cross, hook, uppercut)
   written through the bridge, checked on contact sheets, no validator violations.
 
-## Written, not yet run in the game (bridge version 3)
+## Verified in the game (21 November, bridge version 3)
 
 - **Any form as an actor**: `POST /film/actors` takes `form`, written the way BBS saves forms
   (`{"id": "bbs:billboard", "texture": "assets:textures/pixel.png", ...}`), instead of `model`.
@@ -69,6 +69,25 @@ Specification".
   `impact_lines`. White on transparent, tinted by the billboard's colour. Drawn by
   `tools/dantcimation/impact_textures.py`.
 
+## Impact frames: how the first ones were built
+
+On the shadow-boxing film, each punch gets 2 or 3 frames on 1s, all through the endpoints above.
+
+- **A backdrop actor that stands at the lens.** Its position is the view camera's (`/status`),
+  its yaw is the camera's yaw + 180, so in its own space the camera is the origin, +x is screen
+  right and -z is into the picture. Its root is a billboard with alpha 0; everything else is a
+  body part: a wall behind the character, a floor, a ceiling and two side walls that hide the
+  world, speed lines, a burst behind the character, and edge spikes 0.6 blocks from the lens.
+- **Off except on impact**: the root's `visible` is keyed false at frame 0, true on the contact
+  frame, false again 2 or 3 frames later.
+- **The character flashes** through `color_overlay`: `#FFFFFFFF` white, `#FF000000` black,
+  `#00FFFFFF` off. White character on a black burst, then black character on a white burst.
+- **Body part ids** must be 8 hex characters with at least one letter, or BBS replaces them.
+- **`<partId>/transform` is the part's form transform**, applied inside the body part's own
+  transform: key it as a change (scale 1 is the part's size), not as a place in the world.
+- Everything is aimed at where the camera was. Until a film has its own camera clip, moving the
+  view means building the backdrop again.
+
 ## Rig conventions (player models, from BBS's shipped poses)
 
 - Arms: `r.x` positive swings the arm forward and up (90 is straight ahead). `r.z` raises it
@@ -85,8 +104,7 @@ Specification".
 
 ## Next
 
-1. Run bridge version 3 in the game and build the impact frames on the shadow-boxing film with
-   it: a backdrop actor behind the character, colour overlays on the character, keyed on 1s.
+1. Turn the impact-frame build into one recipe a tool can call with a list of contact frames.
 2. **MCP server**: a small separate process that exposes the bridge as MCP tools.
 3. Camera clips through the bridge (a film still has no camera of its own unless one is made
    in the editor), pose library, action recipes, bake to stepped keys, the remaining validator
