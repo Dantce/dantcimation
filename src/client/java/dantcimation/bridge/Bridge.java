@@ -16,6 +16,7 @@ import mchorse.bbs_mod.film.replays.Replay;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.render.Camera;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +36,7 @@ public class Bridge implements BridgeServer.Handler
     public static final int DEFAULT_PORT = 47110;
 
     /** Bumped whenever a request or an answer changes in a way a tool cannot survive. */
-    public static final int VERSION = 2;
+    public static final int VERSION = 3;
 
     private static final int TIMEOUT_SECONDS = 10;
 
@@ -266,6 +267,11 @@ public class Bridge implements BridgeServer.Handler
             return FilmEditor.getRig(FilmEditor.getActor(film(), Integer.parseInt(actor[0])));
         }
 
+        if (actor != null && actor[1].equals("form"))
+        {
+            return FilmEditor.describeForm(FilmEditor.getActor(film(), Integer.parseInt(actor[0])));
+        }
+
         return null;
     }
 
@@ -307,6 +313,11 @@ public class Bridge implements BridgeServer.Handler
             case "pose-keys" -> FilmEditor.setPoseKeys(panel, replay, body);
             case "root-keys" -> FilmEditor.setRootKeys(panel, replay, body);
             case "pose-keys/clear" -> FilmEditor.clearPoseKeys(panel, replay, body);
+            case "root-keys/clear" -> FilmEditor.clearRootKeys(panel, replay, body);
+            case "property-keys" -> FilmEditor.setPropertyKeys(panel, replay, body);
+            case "property-keys/clear" -> FilmEditor.clearPropertyKeys(panel, replay, body);
+            case "form" -> FilmEditor.setForm(panel, replay, body);
+            case "remove" -> FilmEditor.removeActor(panel, film, replay);
             default -> null;
         };
     }
@@ -373,6 +384,22 @@ public class Bridge implements BridgeServer.Handler
         if (film != null)
         {
             json.addProperty("film", film.getId());
+        }
+
+        if (MinecraftClient.getInstance().world != null)
+        {
+            /* Where the picture is taken from right now. An effect that has to sit behind an
+             * actor, or square to the lens, is placed from this. */
+            Camera camera = MinecraftClient.getInstance().gameRenderer.getCamera();
+            JsonObject view = new JsonObject();
+
+            view.addProperty("x", camera.getCameraPos().x);
+            view.addProperty("y", camera.getCameraPos().y);
+            view.addProperty("z", camera.getCameraPos().z);
+            view.addProperty("yaw", camera.getYaw());
+            view.addProperty("pitch", camera.getPitch());
+
+            json.add("camera", view);
         }
 
         return json;

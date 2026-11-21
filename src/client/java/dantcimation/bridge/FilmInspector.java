@@ -85,6 +85,12 @@ public final class FilmInspector
             json.addProperty("model", modelForm.model.get());
         }
 
+        /* Where it stands when the film starts */
+        json.addProperty("x", replay.keyframes.x.interpolate(0F, 0D));
+        json.addProperty("y", replay.keyframes.y.interpolate(0F, 0D));
+        json.addProperty("z", replay.keyframes.z.interpolate(0F, 0D));
+        json.addProperty("yaw", replay.keyframes.yaw.interpolate(0F, 0D));
+
         for (KeyframeChannel<?> channel : replay.keyframes.getChannels())
         {
             addTrack(tracks, "entity", channel.getId(), channel);

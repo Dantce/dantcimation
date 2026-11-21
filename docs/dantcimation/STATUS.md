@@ -39,36 +39,62 @@ Specification".
   tab on the bridge can POST to it. This is how the endpoints are driven until the MCP server
   exists.
 
-## Written, not yet run in the game
-
 - **`GET /render`**: the film editor's preview as a PNG, or with `frames=0,9,12` a labelled
   contact sheet of those frames (`columns`, `width` optional). It moves the playhead, waits
-  for the game to draw, and reads back BBS's own snapshot texture.
+  for the game to draw, and reads back BBS's own snapshot texture. This is how poses are
+  checked: write, render a sheet, look, correct.
 - **Film length counts pose keys**: `Film.calculateDuration` now uses
   `Replay.getLastKeyframeTick`, which includes property tracks. Before, a film with pose keys
   and no camera clip was one tick long and would not play. This is the one change to BBS's own
   code so far.
+- **A shadow-boxing sequence** on 2s (28 poses, 98 frames: jab, jab-cross, hook, uppercut)
+  written through the bridge, checked on contact sheets, no validator violations.
+
+## Written, not yet run in the game (bridge version 3)
+
+- **Any form as an actor**: `POST /film/actors` takes `form`, written the way BBS saves forms
+  (`{"id": "bbs:billboard", "texture": "assets:textures/pixel.png", ...}`), instead of `model`.
+  `POST /film/actors/<i>/form` swaps an actor's form, `POST /film/actors/<i>/remove` takes the
+  actor out, and `GET /film/actors/<i>/form` returns the form's data and the paths of its
+  keyable properties (a body part's properties sit under the part's id).
+- **Property keys**: `POST /film/actors/<i>/property-keys` with
+  `{"property": "color_overlay", "keys": [{"frame": 26, "value": "#FFFFFFFF"}]}` keys any form
+  property other than the pose: `visible`, `color`, `color_overlay`, `transform`, a body part's
+  `<partId>/color`. Values are written as BBS saves them; a colour may be `#RRGGBB` or
+  `#AARRGGBB`. Keys are constant. `.../property-keys/clear` and `.../root-keys/clear` remove
+  keys in a frame range.
+- **`GET /status`** reports where the view camera is; **`GET /film`** reports where each actor
+  stands. An effect that must sit behind an actor is placed from the two.
+- **Impact textures** in `assets:textures/dantcimation/`: `impact_spikes`, `impact_burst`,
+  `impact_lines`. White on transparent, tinted by the billboard's colour. Drawn by
+  `tools/dantcimation/impact_textures.py`.
 
 ## Rig conventions (player models, from BBS's shipped poses)
 
 - Arms: `r.x` positive swings the arm forward and up (90 is straight ahead). `r.z` raises it
   sideways: positive for the right arm, negative for the left (160 is overhead).
-- Legs: `r.x` positive swings the leg forward (90 is sitting).
+- Legs: `r.x` positive swings the leg forward (90 is sitting). `r.z` spreads them: positive for
+  the right leg, negative for the left.
 - Head: `r.x` positive looks up, `r.y` turns, `r.z` tilts.
-- `low_body`: `r.x` positive leans back, negative leans forward; `r.z` leans sideways.
-- `anchor`: `t.y` negative lowers the whole body (in model pixels).
-- Elbows and knees on `steve_bends`: direction not confirmed yet.
+- `low_body`: `r.x` positive leans back, negative leans forward; `r.z` leans sideways; `r.y`
+  twists the torso.
+- `anchor`: `t.y` negative lowers the whole body (in model pixels); `r.y` turns the whole body
+  without touching the actor's facing, which is how a pose is turned toward the lens.
+- Elbows and knees on `steve_bends` (confirmed on side-view renders): an elbow bends the natural
+  way with positive `r.x`, a knee with negative `r.x`.
 
 ## Next
 
-1. Run `/render` in the game; use it to confirm the elbow and knee directions.
+1. Run bridge version 3 in the game and build the impact frames on the shadow-boxing film with
+   it: a backdrop actor behind the character, colour overlays on the character, keyed on 1s.
 2. **MCP server**: a small separate process that exposes the bridge as MCP tools.
-3. Pose library, action recipes, bake to stepped keys, contact-sheet rendering, the remaining
-   validator rules, camera tools. See section 13.3 of the style guide.
+3. Camera clips through the bridge (a film still has no camera of its own unless one is made
+   in the editor), pose library, action recipes, bake to stepped keys, the remaining validator
+   rules. See section 13.3 of the style guide.
 
 ## Notes for the write endpoints
 
-Read from the BBS source on the `1.21.11` branch; none of this is written yet.
+Read from the BBS source on the `1.21.11` branch; this is what the write endpoints are built on.
 
 - **Adding an actor.** `ReplayFactory.atPosition(film, position, pitch, yaw)` creates a replay
   with its first position and rotation keys. Give it a form with
@@ -96,5 +122,7 @@ Read from the BBS source on the `1.21.11` branch; none of this is written yet.
   class that touches Minecraft or BBS needs a local `runClient` to confirm it.
 - Synthetic mouse and keyboard input does not reach the Minecraft window, so the game itself
   has to be driven by a person; the bridge is how a program reaches it.
+- A film without a camera clip is seen from wherever the editor's camera happens to be, so an
+  effect composed toward the lens (an impact backdrop) is only right from that spot.
 - The style guide says a pose bone has two rotations, `r` and `r2`. `r2` is legacy and is folded
   into `r` on load; the guide needs that corrected.

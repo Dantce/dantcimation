@@ -3,30 +3,43 @@ package dantcimation.bridge;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonParser;
 import dantcimation.style.FrameGrid;
 import mchorse.bbs_mod.BBSMod;
 import mchorse.bbs_mod.BBSModClient;
 import mchorse.bbs_mod.cubic.IModel;
 import mchorse.bbs_mod.cubic.ModelInstance;
 import mchorse.bbs_mod.cubic.RigBone;
+import mchorse.bbs_mod.data.DataToString;
+import mchorse.bbs_mod.data.types.BaseType;
+import mchorse.bbs_mod.data.types.IntType;
+import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.replays.FormProperties;
 import mchorse.bbs_mod.film.replays.Replay;
+import mchorse.bbs_mod.film.replays.tracks.TrackId;
+import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.Form;
 import mchorse.bbs_mod.forms.forms.ModelForm;
+import mchorse.bbs_mod.forms.forms.UnknownForm;
 import mchorse.bbs_mod.resources.Link;
+import mchorse.bbs_mod.settings.values.base.BaseKeyframeFactoryValue;
 import mchorse.bbs_mod.settings.values.base.BaseValue;
+import mchorse.bbs_mod.settings.values.base.BaseValueBasic;
 import mchorse.bbs_mod.ui.film.UIFilmPanel;
 import mchorse.bbs_mod.ui.film.replays.ReplayFactory;
 import mchorse.bbs_mod.utils.interps.Interpolations;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
+import mchorse.bbs_mod.utils.keyframes.factories.IKeyframeFactory;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import org.joml.Vector3d;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +51,11 @@ import java.util.TreeSet;
  * <p>Tools speak frames at 24 fps, degrees and named bones; this is where that turns into BBS
  * keyframes. Every key it writes is constant and on the frame grid, because that is what the
  * style guide asks of a character — a tool cannot write anything else by accident.</p>
+ *
+ * <p>Anything that is not a character — a backdrop, a flash, a prop — is a form too, and BBS
+ * already has a way to write one down. So a tool hands over a form as the data BBS itself saves,
+ * and keys its properties by the path the timeline shows them under; nothing here knows what an
+ * impact frame is.</p>
  *
  * <p>Each change is one {@link BaseValue#edit}: that is what makes it a single undo step in the
  * editor and what sends it to the server's copy of the film. A problem with what a tool sent is
@@ -67,15 +85,7 @@ public final class FilmEditor
         double y = getDouble(body, "y", player == null ? 0D : player.getY());
         double z = getDouble(body, "z", player == null ? 0D : player.getZ());
         float yaw = (float) getDouble(body, "yaw", player == null ? 0D : player.getYaw());
-        Form form = BBSMod.getForms().create(Link.bbs("model"));
-
-        if (!(form instanceof ModelForm modelForm))
-        {
-            throw new IllegalStateException("BBS did not hand back a model form");
-        }
-
-        modelForm.model.set(model);
-
+        Form form = body.has("form") ? readForm(body) : createModel(model);
         Replay[] added = new Replay[1];
 
         BaseValue.edit(film.replays, (replays) ->
@@ -99,9 +109,120 @@ public final class FilmEditor
 
         json.addProperty("index", film.replays.getList().indexOf(added[0]));
         json.addProperty("id", added[0].getId());
-        json.addProperty("model", model);
+
+        if (form instanceof ModelForm modelForm)
+        {
+            json.addProperty("model", modelForm.model.get());
+        }
 
         return json;
+    }
+
+    /** Take an actor out of the film, with everything keyed on it. */
+    public static JsonObject removeActor(UIFilmPanel panel, Film film, Replay replay)
+    {
+        int index = film.replays.getList().indexOf(replay);
+
+        film.replays.remove(replay);
+
+        List<Replay> remaining = film.replays.getList();
+
+        panel.replayEditor.setFilm(film);
+        panel.replayEditor.setReplay(remaining.isEmpty() ? null : remaining.get(Math.min(index, remaining.size() - 1)));
+        panel.getController().createEntities();
+
+        JsonObject json = new JsonObject();
+
+        json.addProperty("removed", index);
+        json.addProperty("actors", remaining.size());
+
+        return json;
+    }
+
+    /**
+     * Give an actor another form. Its keys stay; the ones whose property the new form does not
+     * have simply stop doing anything, as they do when a form is swapped in the editor.
+     */
+    public static JsonObject setForm(UIFilmPanel panel, Replay replay, JsonObject body)
+    {
+        Form form = readForm(body);
+
+        BaseValue.edit(replay.form, (value) -> value.set(form));
+
+        panel.getController().createEntities();
+        refresh(panel, replay);
+
+        return describeForm(replay);
+    }
+
+    /**
+     * The actor's form as BBS saves it, and the paths of the properties that can be keyed on it
+     * — a body part's properties sit under the part's id.
+     */
+    public static JsonObject describeForm(Replay replay)
+    {
+        Form form = replay.form.get();
+        JsonObject json = new JsonObject();
+        JsonArray properties = new JsonArray();
+
+        if (form == null)
+        {
+            throw new IllegalArgumentException("This actor has no form");
+        }
+
+        String text = DataToString.toString(FormUtils.toData(form), true);
+
+        try
+        {
+            json.add("form", JsonParser.parseString(text));
+        }
+        catch (JsonParseException e)
+        {
+            /* Better the text than nothing, should BBS ever write something JSON cannot hold */
+            json.addProperty("formText", text);
+        }
+
+        for (String path : FormUtils.collectPropertyPaths(form))
+        {
+            properties.add(path);
+        }
+
+        json.add("properties", properties);
+
+        return json;
+    }
+
+    private static Form createModel(String model)
+    {
+        Form form = BBSMod.getForms().create(Link.bbs("model"));
+
+        if (!(form instanceof ModelForm modelForm))
+        {
+            throw new IllegalStateException("BBS did not hand back a model form");
+        }
+
+        modelForm.model.set(model);
+
+        return form;
+    }
+
+    /** A form from {@code {"form": {"id": "bbs:billboard", ...}}}, written the way BBS saves forms. */
+    private static Form readForm(JsonObject body)
+    {
+        if (!body.has("form") || !body.get("form").isJsonObject())
+        {
+            throw new IllegalArgumentException("Send the form as a 'form' object, the way BBS saves it");
+        }
+
+        MapType data = DataToString.mapFromString(body.get("form").toString());
+        Form form = data == null ? null : FormUtils.fromData(data);
+
+        if (form == null || form instanceof UnknownForm)
+        {
+            throw new IllegalArgumentException("BBS could not make a form out of that; 'id' must name a form type, such as bbs:model or bbs:billboard");
+        }
+
+        return form;
     }
 
     public static Replay getActor(Film film, int index)
@@ -241,29 +362,112 @@ public final class FilmEditor
         return written(keys.size());
     }
 
+    /**
+     * Key a property of the actor's form — its colour, its overlay, whether it shows, its
+     * transform, a property of one of its body parts. Each key holds until the next one.
+     *
+     * <p>A value is written the way BBS saves that kind of property. A colour may also be given
+     * as {@code "#RRGGBB"} or {@code "#AARRGGBB"}, because a packed integer is no way to read
+     * one.</p>
+     */
+    @SuppressWarnings("rawtypes")
+    public static JsonObject setPropertyKeys(UIFilmPanel panel, Replay replay, JsonObject body)
+    {
+        Form form = getForm(replay);
+        String path = getPropertyPath(body);
+        IKeyframeFactory factory = getFactory(form, path);
+        JsonArray keys = getKeys(body);
+        int[] frames = new int[keys.size()];
+        Object[] values = new Object[keys.size()];
+
+        for (int i = 0; i < frames.length; i++)
+        {
+            JsonObject key = keys.get(i).getAsJsonObject();
+
+            frames[i] = getFrame(key);
+            values[i] = factory.fromData(readValue(key));
+        }
+
+        KeyframeChannel channel = replay.properties.getOrCreate(form, path);
+
+        if (channel == null)
+        {
+            throw new IllegalStateException("BBS would not make a track for '" + path + "'");
+        }
+
+        BaseValue.edit(replay.properties, (properties) ->
+        {
+            for (int i = 0; i < frames.length; i++)
+            {
+                insertConstant(channel, frames[i], values[i]);
+            }
+        });
+
+        refresh(panel, replay);
+
+        return written(frames.length);
+    }
+
+    /** Remove the keys of one property in a frame range, both ends included. */
+    public static JsonObject clearPropertyKeys(UIFilmPanel panel, Replay replay, JsonObject body)
+    {
+        KeyframeChannel<?> channel = replay.properties.get(TrackId.parse(getPropertyPath(body)));
+
+        return clear(panel, replay, replay.properties, channel == null ? List.of() : List.of(channel), body);
+    }
+
     /** Remove the pose keys of a frame range, both ends included. */
     public static JsonObject clearPoseKeys(UIFilmPanel panel, Replay replay, JsonObject body)
     {
+        KeyframeChannel<?> channel = replay.properties.getOrCreate(getModelForm(replay), FormProperties.POSE_PROPERTY);
+
+        return clear(panel, replay, replay.properties, channel == null ? List.of() : List.of(channel), body);
+    }
+
+    /**
+     * Remove the keys of where the actor stands and faces in a frame range, both ends included
+     * — all of them, or only the channels named in {@code "channels"}, such as {@code ["pitch"]}.
+     */
+    public static JsonObject clearRootKeys(UIFilmPanel panel, Replay replay, JsonObject body)
+    {
+        List<KeyframeChannel<?>> channels = new ArrayList<>();
+        JsonArray names = body.has("channels") && body.get("channels").isJsonArray() ? body.getAsJsonArray("channels") : null;
+
+        for (KeyframeChannel<?> channel : replay.keyframes.getChannels())
+        {
+            if (names == null || contains(names, channel.getId()))
+            {
+                channels.add(channel);
+            }
+        }
+
+        return clear(panel, replay, replay.keyframes, channels, body);
+    }
+
+    private static JsonObject clear(UIFilmPanel panel, Replay replay, BaseValue owner, List<KeyframeChannel<?>> channels, JsonObject body)
+    {
         int from = getInt(body, "fromFrame", 0);
         int to = getInt(body, "toFrame", Integer.MAX_VALUE);
-        KeyframeChannel channel = replay.properties.getOrCreate(getModelForm(replay), FormProperties.POSE_PROPERTY);
         int[] removed = new int[1];
 
-        if (channel != null)
+        if (!channels.isEmpty())
         {
-            BaseValue.edit(replay.properties, (properties) ->
+            BaseValue.edit(owner, (value) ->
             {
-                List<?> keyframes = channel.getKeyframes();
-
-                for (int i = keyframes.size() - 1; i >= 0; i--)
+                for (KeyframeChannel<?> channel : channels)
                 {
-                    int frame = FrameGrid.nearestFrame(((Keyframe<?>) keyframes.get(i)).getTick());
+                    List<?> keyframes = channel.getKeyframes();
 
-                    if (frame >= from && frame <= to)
+                    for (int i = keyframes.size() - 1; i >= 0; i--)
                     {
-                        channel.remove(i);
+                        int frame = FrameGrid.nearestFrame(((Keyframe<?>) keyframes.get(i)).getTick());
 
-                        removed[0] += 1;
+                        if (frame >= from && frame <= to)
+                        {
+                            channel.remove(i);
+
+                            removed[0] += 1;
+                        }
                     }
                 }
             });
@@ -276,6 +480,19 @@ public final class FilmEditor
         json.addProperty("removed", removed[0]);
 
         return json;
+    }
+
+    private static boolean contains(JsonArray names, String name)
+    {
+        for (JsonElement element : names)
+        {
+            if (element.isJsonPrimitive() && element.getAsString().equals(name))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** Move the editor's playhead, so the person watching sees the frame a tool is working on. */
@@ -421,6 +638,94 @@ public final class FilmEditor
         }
 
         return (int) frame;
+    }
+
+    private static Form getForm(Replay replay)
+    {
+        Form form = replay.form.get();
+
+        if (form == null)
+        {
+            throw new IllegalArgumentException("This actor has no form");
+        }
+
+        return form;
+    }
+
+    private static String getPropertyPath(JsonObject body)
+    {
+        if (!body.has("property") || !body.get("property").isJsonPrimitive() || body.get("property").getAsString().isBlank())
+        {
+            throw new IllegalArgumentException("Name the 'property' to key, such as color_overlay");
+        }
+
+        return body.get("property").getAsString();
+    }
+
+    /** What turns saved data into a value of this property; this is also the check that it exists. */
+    @SuppressWarnings("rawtypes")
+    private static IKeyframeFactory getFactory(Form form, String path)
+    {
+        BaseValueBasic property = FormUtils.getProperty(form, path);
+
+        if (path.substring(path.lastIndexOf('/') + 1).startsWith(FormProperties.POSE_PROPERTY))
+        {
+            throw new IllegalArgumentException("Poses are keyed through pose-keys, which keeps them on the frame grid");
+        }
+
+        if (property instanceof BaseKeyframeFactoryValue<?> keyed && property.isVisible())
+        {
+            return keyed.getFactory();
+        }
+
+        throw new IllegalArgumentException("This actor's form has no property '" + path + "' that can be keyed. It has: " + String.join(", ", FormUtils.collectPropertyPaths(form)));
+    }
+
+    private static BaseType readValue(JsonObject key)
+    {
+        if (!key.has("value"))
+        {
+            throw new IllegalArgumentException("Every key needs a 'value'");
+        }
+
+        JsonElement value = key.get("value");
+
+        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() && value.getAsString().startsWith("#"))
+        {
+            return new IntType(readColor(value.getAsString()));
+        }
+
+        BaseType data = DataToString.fromString(value.toString());
+
+        if (data == null)
+        {
+            throw new IllegalArgumentException("BBS could not read the value " + value);
+        }
+
+        return data;
+    }
+
+    /** {@code #RRGGBB} is opaque; {@code #AARRGGBB} says how strong, which is what an overlay's alpha means. */
+    private static int readColor(String text)
+    {
+        String hex = text.substring(1);
+
+        try
+        {
+            if (hex.length() == 6)
+            {
+                return 0xff000000 | Integer.parseInt(hex, 16);
+            }
+
+            if (hex.length() == 8)
+            {
+                return Integer.parseUnsignedInt(hex, 16);
+            }
+        }
+        catch (NumberFormatException e)
+        {}
+
+        throw new IllegalArgumentException("A colour is #RRGGBB or #AARRGGBB, not " + text);
     }
 
     private static ModelForm getModelForm(Replay replay)
