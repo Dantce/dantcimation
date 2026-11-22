@@ -69,8 +69,11 @@ Rotations are degrees. Use `get_rig` for the bone names of any other model.
 `player/steve` has no elbows or knees. Use `player/steve_bends` for anything that fights, runs
 or sits.
 
-Which way the character faces the camera cannot be worked out from numbers alone. After the
-first poses, render a frame; if you see its back, add 180 to `anchor` r.y in every pose.
+To face a character at the camera, `get_facing_turn` gives the `anchor` r.y for it. Positive
+r.y on `anchor`, `low_body` and `head` turns to the character's own left.
+
+A bent arm raised out to the side (`left_arm` r.z about -85, elbow 90) points its forearm
+forward at r.x 0 and across the chest at r.x 60: that is the shape of a hook.
 
 ## The library
 
@@ -88,8 +91,8 @@ tells you where its contact falls and where it ends.
 - Leave holds between combinations: a `bob`, or the guard held for 8 to 12 frames. Rule T5
   still applies to what you assemble.
 - `turn` turns the whole character and is the same for every entry on one actor in one shot.
-  Find it once: `apply_pose` idle with `turn` 180, render, and adjust until it faces where it
-  should. `mirror` gives the other hand.
+  `get_facing_turn` gives the value that faces the camera squarely; add or subtract 90 for a
+  profile. `mirror` gives the other hand.
 - Use the `contacts` an action returns for everything timed to the hit: impact frames, a
   camera punch-in.
 

@@ -112,18 +112,20 @@ made before this has to be removed and added again.
   rest direction for a right-handed character; `mcp/library.mjs` expands an entry into pose
   keys, with `turn` (anchor r.y) and `mirror`. MCP tools: `list_library`, `get_library_entry`,
   `apply_pose`, `apply_action` (returns contact frames and where the action ends).
-- **Checked on front-view renders**: `idle`, `guard`, `jab`, `cross`.
-  **Written, not yet looked at**: `guard_up`, `guard_down`, `bob`. Side views of all are still
-  to do, and `hook`, `uppercut`, a hit reaction and locomotion are not written.
-- **Reading keys back** (bridge version 6, not yet run in the game):
-  `GET /film/actors/<i>/pose-keys` and `.../property-keys?property=`, as `get_pose_keys` and
-  `get_property_keys`. `/film` also reports each actor's `bodyYaw`.
+- **Checked on front-view renders in the game**: `idle`, `guard`, `guard_up`, `guard_down`,
+  `bob`, `jab`, `cross`, `hook`, `uppercut`. Side views are still to do; a hit reaction and
+  locomotion are not written.
+- The shadow-boxing film was rebuilt from these through the MCP tools alone (guard up, bob,
+  jab, jab-cross, bob, hook-uppercut, guard down), with the contacts on the same frames as
+  before; it validates clean and reads better than the hand-keyed version it replaced.
+- **Reading keys back** (bridge version 6, verified): `GET /film/actors/<i>/pose-keys` and
+  `.../property-keys?property=`, as `get_pose_keys` and `get_property_keys`.
+- **Facing the camera**: an actor faces the camera at `turn` = its `bodyYaw` minus the yaw of
+  the line to the camera (`get_facing_turn`). `bodyYaw` can differ from `yaw` by tens of
+  degrees on an actor made where the player stood, which is what made this look unpredictable.
 - Rotation signs settled on renders: `anchor`, `low_body` and `head` r.y positive turn to the
   character's own left; an arm raised forward swings to the character's left with positive
   r.y; `low_body` r.z positive leans to its right.
-- On the test film the character faces the locked camera at `turn` 184. That is about 33
-  degrees from what the actor's yaw and the camera position predict, which is why `bodyYaw` is
-  now reported: until that is understood, `turn` has to be found on a render.
 
 ## Impact frames: how the first ones were built
 

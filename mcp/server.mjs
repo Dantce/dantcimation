@@ -22,7 +22,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_FILE = process.env.DANTCIMATION_BRIDGE_FILE || join(HERE, "..", "run", "config", "bbs", "dantcimation", "bridge.json");
 const GUIDE_FILE = join(HERE, "guide.md");
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
-const SERVER = { name: "dantcimation", version: "0.4.0" };
+const SERVER = { name: "dantcimation", version: "0.5.0" };
 
 const INSTRUCTIONS = "Dantcimation animates characters in the BBS film that is open in Minecraft's film editor. "
     + "Call get_animation_guide once before animating: it holds the timing rules, the rig's rotation "
@@ -219,6 +219,28 @@ const TOOLS = [
             return json({ action: a.name, description: action.description, cadence: action.cadence, from: action.from, to: action.to, contacts: action.contacts || [], steps: expandAction(library, a.name, 0, options).map((key) => ({ at: key.frame, pose: key.pose })) });
         }),
 
+    tool("get_facing_turn",
+        "The 'turn' that makes an actor face the camera squarely, worked out from where the actor stands, which way its body faces and where the camera is. Add 90 or subtract 90 for a profile, add 180 to turn its back. Call it once the camera is locked and reuse the value for every library entry on that actor.",
+        { actor }, ["actor"],
+        async (a) =>
+        {
+            const film = await bridge("GET", "/film");
+            const status = await bridge("GET", "/status");
+            const replay = (film.replays || [])[a.actor];
+
+            if (!replay)
+            {
+                throw new Error(`There is no actor ${a.actor}; the film has ${(film.replays || []).length}`);
+            }
+
+            if (!status.camera)
+            {
+                throw new Error("Minecraft is not in a world, so there is no camera to face");
+            }
+
+            return json({ turn: facingTurn(replay, status.camera) });
+        }),
+
     tool("apply_pose",
         "Write one library pose on a character at a frame.",
         { actor, pose: { type: "string", description: "A pose name from list_library." }, frame, ...placing }, ["actor", "pose", "frame"],
@@ -396,6 +418,19 @@ function compactFilm(film)
     }
 
     return film;
+}
+
+/**
+ * Minecraft's yaw grows clockwise seen from above and 0 looks along +z; the anchor's r.y grows
+ * the other way. So the turn is the body's yaw less the yaw of the line to the camera.
+ */
+export function facingTurn(actor, camera)
+{
+    const toCamera = Math.atan2(-(camera.x - actor.x), camera.z - actor.z) * 180 / Math.PI;
+    const bodyYaw = actor.bodyYaw ?? actor.yaw;
+    const turn = ((bodyYaw - toCamera) % 360 + 540) % 360 - 180;
+
+    return Math.round(turn * 10) / 10;
 }
 
 function query(values)

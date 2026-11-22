@@ -49,9 +49,10 @@ const game = createServer((request, response) =>
         seen.push({ method: request.method, url: request.url, body: body ? JSON.parse(body) : null });
 
         if (request.url.startsWith("/render")) return answer(200, "image/png", PNG);
+        if (request.url === "/status") return answer(200, "application/json", JSON.stringify({ camera: { x: -6.2942, y: 65.69, z: 26.8165, yaw: -513.02, pitch: 11.93 } }));
         if (request.url === "/film") return answer(200, "application/json", JSON.stringify({
             id: "Test", frames: 98, cameraClips: 1,
-            replays: [{ index: 0, name: "Tester", tracks: [
+            replays: [{ index: 0, name: "Tester", x: -5.3973, y: 64, z: 25.2216, yaw: -114.21, bodyYaw: -146.016, tracks: [
                 { kind: "entity", id: "x", keys: 1 }, { kind: "entity", id: "yaw", keys: 3 }, { kind: "property", id: "pose", keys: 28 },
             ] }],
         }));
@@ -110,7 +111,7 @@ check("ping", JSON.stringify((await request("ping")).result) === "{}");
 const list = await request("tools/list");
 const names = list.result.tools.map((entry) => entry.name);
 
-check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 30, names);
+check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 31, names);
 check("every tool has a schema and a description", list.result.tools.every((entry) => entry.inputSchema?.type === "object" && entry.description.length > 20));
 
 const guide = await call("get_animation_guide", {});
@@ -166,6 +167,10 @@ const entry = JSON.parse((await call("get_library_entry", { name: "cross" })).re
 
 check("get_library_entry resolves a step that builds on the one before", entry.steps[2].at === 4 && entry.steps[2].pose.right_elbow.r[0] === 10 && entry.steps[2].pose.left_elbow.r[0] === 136, entry.steps[2]);
 check("an unknown action is explained", (await call("apply_action", { actor: 0, action: "nope", frame: 0 })).result.content[0].text.includes("The library has"));
+
+const facing = JSON.parse((await call("get_facing_turn", { actor: 0 })).result.content[0].text);
+
+check("get_facing_turn matches the turn found on renders in the game", Math.abs(facing.turn - (-175.4)) < 0.2, facing);
 
 await call("get_property_keys", { actor: 1, property: "dca11008/color", fromFrame: 20 });
 check("get_property_keys encodes the path", seen.at(-1).url === "/film/actors/1/property-keys?property=dca11008%2Fcolor&fromFrame=20", seen.at(-1));
