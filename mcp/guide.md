@@ -72,12 +72,37 @@ or sits.
 Which way the character faces the camera cannot be worked out from numbers alone. After the
 first poses, render a frame; if you see its back, add 180 to `anchor` r.y in every pose.
 
+## The library
+
+`list_library` has ready-made poses and actions. An action is a run of whole poses with the
+four beats already in it and the timing already on the cadence; `apply_action` writes it and
+tells you where its contact falls and where it ends.
+
+- Start from the library whenever something in it is close, then adjust: `get_library_entry`
+  gives an action's poses to edit and send with `set_pose_keys`, and `get_pose_keys` reads back
+  what is in the film.
+- Chain actions by starting each on the frame the last one ended (`endsAt`). Its anticipation
+  replaces the pose that was there, so a jab runs straight into a cross.
+- An action expects the character to be in its `from` pose. `guard_up` takes a standing
+  character into the guard the punches start from; `guard_down` brings it back.
+- Leave holds between combinations: a `bob`, or the guard held for 8 to 12 frames. Rule T5
+  still applies to what you assemble.
+- `turn` turns the whole character and is the same for every entry on one actor in one shot.
+  Find it once: `apply_pose` idle with `turn` 180, render, and adjust until it faces where it
+  should. `mirror` gives the other hand.
+- Use the `contacts` an action returns for everything timed to the hit: impact frames, a
+  camera punch-in.
+
+The library is small and grows as actions are checked on renders. When nothing fits, pose from
+scratch by the rules above.
+
 ## Method
 
 1. `get_status`, then `get_film`. If no film is open, ask the person to open one in the BBS
    film editor. Use the actor that is there or `add_actor`.
-2. Plan the shot as a list of poses with frames, on the cadence, before writing anything.
-3. `set_pose_keys` with all of them at once.
+2. Plan the shot as a list of actions and poses with frames, on the cadence, before writing
+   anything. `list_library` first.
+3. `apply_action` for what the library has, `set_pose_keys` for the rest.
 4. `validate_film`.
 5. `render_frames` with the frames of your key poses. Look at every cell. Fix poses that do not
    read, limbs that pass through the body, a character facing the wrong way.

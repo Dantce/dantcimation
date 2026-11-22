@@ -110,7 +110,7 @@ check("ping", JSON.stringify((await request("ping")).result) === "{}");
 const list = await request("tools/list");
 const names = list.result.tools.map((entry) => entry.name);
 
-check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 24, names);
+check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 30, names);
 check("every tool has a schema and a description", list.result.tools.every((entry) => entry.inputSchema?.type === "object" && entry.description.length > 20));
 
 const guide = await call("get_animation_guide", {});
@@ -145,6 +145,30 @@ check("add_camera_move posts the keys", last.url === "/film/camera/moves" && las
 
 await call("remove_camera_clip", { clip: 2 });
 check("remove_camera_clip names the clip in the path", seen.at(-1).url === "/film/camera/clips/2/remove", seen.at(-1));
+
+const shelf = JSON.parse((await call("list_library", {})).result.content[0].text);
+const jab = shelf.actions.find((entry) => entry.name === "jab");
+
+check("list_library describes the jab", jab && jab.cadence === "action" && jab.frames === 6 && jab.contacts[0] === 2 && jab.from === "guard", jab);
+
+const applied = JSON.parse((await call("apply_action", { actor: 0, action: "jab", frame: 24, turn: 180 })).result.content[0].text);
+
+last = seen.at(-1);
+check("apply_action posts whole poses at the action's frames", last.url === "/film/actors/0/pose-keys" && last.body.keys.map((key) => key.frame).join() === "24,26,28,30" && last.body.keys[1].pose.left_elbow.r[0] === 4, last.body.keys.map((key) => key.frame));
+check("apply_action turns the anchor", last.body.keys[0].pose.anchor.r[1] === 150, last.body.keys[0].pose.anchor);
+check("apply_action says where it hits and where it ends", applied.contacts[0] === 26 && applied.endsAt === 30 && applied.endsIn === "guard", applied);
+
+await call("apply_action", { actor: 0, action: "jab", frame: 0, mirror: true });
+last = seen.at(-1);
+check("mirror swaps the arms and reverses the turns", last.body.keys[1].pose.right_elbow.r[0] === 4 && last.body.keys[1].pose.anchor.r[1] === 30 && last.body.keys[1].pose.right_arm.r[1] === -42, last.body.keys[1].pose);
+
+const entry = JSON.parse((await call("get_library_entry", { name: "cross" })).result.content[0].text);
+
+check("get_library_entry resolves a step that builds on the one before", entry.steps[2].at === 4 && entry.steps[2].pose.right_elbow.r[0] === 10 && entry.steps[2].pose.left_elbow.r[0] === 136, entry.steps[2]);
+check("an unknown action is explained", (await call("apply_action", { actor: 0, action: "nope", frame: 0 })).result.content[0].text.includes("The library has"));
+
+await call("get_property_keys", { actor: 1, property: "dca11008/color", fromFrame: 20 });
+check("get_property_keys encodes the path", seen.at(-1).url === "/film/actors/1/property-keys?property=dca11008%2Fcolor&fromFrame=20", seen.at(-1));
 
 await call("validate_film", { cadence: "action" });
 check("validate_film passes the cadence", seen.at(-1).url === "/film/validate?cadence=action", seen.at(-1));

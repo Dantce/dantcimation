@@ -16,11 +16,13 @@ import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 
+import { contactFrames, describeLibrary, expandAction, expandPose, getAction, getPose, loadLibrary } from "./library.mjs";
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_FILE = process.env.DANTCIMATION_BRIDGE_FILE || join(HERE, "..", "run", "config", "bbs", "dantcimation", "bridge.json");
 const GUIDE_FILE = join(HERE, "guide.md");
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
-const SERVER = { name: "dantcimation", version: "0.3.0" };
+const SERVER = { name: "dantcimation", version: "0.4.0" };
 
 const INSTRUCTIONS = "Dantcimation animates characters in the BBS film that is open in Minecraft's film editor. "
     + "Call get_animation_guide once before animating: it holds the timing rules, the rig's rotation "
@@ -36,6 +38,11 @@ const range = {
     toFrame: { type: "integer", minimum: 0, description: "Last frame of the range, included. Default: the end." },
 };
 const vector = { type: "array", items: { type: "number" }, minItems: 3, maxItems: 3 };
+
+const placing = {
+    turn: { type: "number", description: "Degrees to turn the whole character, added to the anchor's r.y; positive turns it to its own left. Library entries face the way the model faces at rest, so a character that shows its back to the camera needs about 180. Find the value once per actor with a render and reuse it." },
+    mirror: { type: "boolean", description: "Swap left and right: a southpaw stance, a wave with the other hand." },
+};
 
 function tool(name, description, properties, required, run)
 {
@@ -178,6 +185,62 @@ const TOOLS = [
         "Remove the keys of one form property in a frame range.",
         { actor, property: { type: "string" }, ...range }, ["actor", "property"],
         async (a) => json(await bridge("POST", `/film/actors/${a.actor}/property-keys/clear`, pick(a, "property", "fromFrame", "toFrame")))),
+
+    tool("get_pose_keys",
+        "Read an actor's pose keys back, in the shape set_pose_keys takes: frames, bones, rotations in degrees. Use it to see what is already animated before changing it; a key can be edited and sent straight back.",
+        { actor, ...range }, ["actor"],
+        async (a) => json(await bridge("GET", `/film/actors/${a.actor}/pose-keys` + query(pick(a, "fromFrame", "toFrame"))))),
+
+    tool("get_property_keys",
+        "Read the keys of one form property of an actor, each value as BBS saves it.",
+        { actor, property: { type: "string", description: "The property's path, from get_form or get_film." }, ...range }, ["actor", "property"],
+        async (a) => json(await bridge("GET", `/film/actors/${a.actor}/property-keys` + query(pick(a, "property", "fromFrame", "toFrame"))))),
+
+    tool("list_library",
+        "The pose and action library: ready-made poses, and actions built of poses with their timing already worked out (anticipation, extreme, settle). For each action: its cadence, its length in frames, the pose it starts from and ends in, and the frame offsets of its contacts. Prefer an action from here to posing from scratch, then adjust.",
+        {}, [],
+        async () => json(describeLibrary(await loadLibrary()))),
+
+    tool("get_library_entry",
+        "One library entry in full: a pose's bones, or every step of an action as a whole pose at its frame offset. Use it as a starting point for a variation written with set_pose_keys.",
+        { name: { type: "string", description: "A pose or action name from list_library." }, ...placing }, ["name"],
+        async (a) =>
+        {
+            const library = await loadLibrary();
+            const options = pick(a, "turn", "mirror");
+
+            if (library.poses[a.name])
+            {
+                return json({ pose: a.name, description: getPose(library, a.name).description, bones: expandPose(library, a.name, 0, options)[0].pose });
+            }
+
+            const action = getAction(library, a.name);
+
+            return json({ action: a.name, description: action.description, cadence: action.cadence, from: action.from, to: action.to, contacts: action.contacts || [], steps: expandAction(library, a.name, 0, options).map((key) => ({ at: key.frame, pose: key.pose })) });
+        }),
+
+    tool("apply_pose",
+        "Write one library pose on a character at a frame.",
+        { actor, pose: { type: "string", description: "A pose name from list_library." }, frame, ...placing }, ["actor", "pose", "frame"],
+        async (a) =>
+        {
+            const keys = expandPose(await loadLibrary(), a.pose, a.frame, pick(a, "turn", "mirror"));
+
+            return json({ ...(await bridge("POST", `/film/actors/${a.actor}/pose-keys`, { keys })), frames: [a.frame] });
+        }),
+
+    tool("apply_action",
+        "Write a library action on a character, starting at a frame. Returns the frames it keyed, the frames of its contacts (where an impact frame or a camera punch-in belongs), and the frame it ends on, which is where the next action can start: an action that starts on the frame the last one ended replaces that pose with its own anticipation, so punches chain without a pause.",
+        { actor, action: { type: "string", description: "An action name from list_library." }, frame: { ...frame, description: "The frame the action starts on." }, ...placing }, ["actor", "action", "frame"],
+        async (a) =>
+        {
+            const library = await loadLibrary();
+            const action = getAction(library, a.action);
+            const keys = expandAction(library, a.action, a.frame, pick(a, "turn", "mirror"));
+            const answer = await bridge("POST", `/film/actors/${a.actor}/pose-keys`, { keys });
+
+            return json({ ...answer, frames: keys.map((key) => key.frame), contacts: contactFrames(library, a.action, a.frame), endsAt: keys[keys.length - 1].frame, endsIn: action.to, cadence: action.cadence });
+        }),
 
     tool("get_camera",
         "The film's camera: its clips in order (index, type, start frame, length in frames, layer, and the clip as BBS saves it), and where the editor's view is now (x, y, z, yaw, pitch, roll, fov).",
@@ -335,6 +398,13 @@ function compactFilm(film)
     return film;
 }
 
+function query(values)
+{
+    const parts = Object.entries(values).map(([name, value]) => name + "=" + encodeURIComponent(value));
+
+    return parts.length ? "?" + parts.join("&") : "";
+}
+
 function pick(from, ...names)
 {
     const out = {};
@@ -396,7 +466,7 @@ async function handle(message)
             {
                 /* What went wrong in the game is for the model to read and act on, so it is a
                  * tool result, not a protocol error */
-                return result(id, { content: [{ type: "text", text: e instanceof BridgeError ? e.message : String(e?.stack || e) }], isError: true });
+                return result(id, { content: [{ type: "text", text: e instanceof BridgeError || e?.constructor === Error ? e.message : String(e?.stack || e) }], isError: true });
             }
         }
 

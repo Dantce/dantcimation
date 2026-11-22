@@ -277,6 +277,154 @@ public final class FilmEditor
         return json;
     }
 
+    /* Reading keys */
+
+    /**
+     * The actor's pose keys, in the terms {@link #setPoseKeys} takes them: frames, bones,
+     * degrees. What comes out can be changed and sent straight back.
+     */
+    public static JsonObject getPoseKeys(Replay replay, Map<String, String> query)
+    {
+        KeyframeChannel<?> channel = replay.properties.get(TrackId.parse(FormProperties.POSE_PROPERTY));
+        int[] range = getRange(query);
+        JsonArray keys = new JsonArray();
+
+        if (channel != null)
+        {
+            for (Keyframe<?> keyframe : channel.getKeyframes())
+            {
+                int frame = FrameGrid.nearestFrame(keyframe.getTick());
+
+                if (frame < range[0] || frame > range[1] || !(keyframe.getValue() instanceof Pose pose))
+                {
+                    continue;
+                }
+
+                JsonObject key = new JsonObject();
+                JsonObject bones = new JsonObject();
+
+                for (String bone : new TreeSet<>(pose.transforms.keySet()))
+                {
+                    bones.add(bone, writeTransform(pose.transforms.get(bone)));
+                }
+
+                key.addProperty("frame", frame);
+                key.add("pose", bones);
+                keys.add(key);
+            }
+        }
+
+        JsonObject json = new JsonObject();
+
+        json.add("keys", keys);
+
+        return json;
+    }
+
+    /** The keys of one form property, each value written the way BBS saves it. */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    public static JsonObject getPropertyKeys(Replay replay, Map<String, String> query)
+    {
+        String path = query.get("property");
+
+        if (path == null || path.isBlank())
+        {
+            throw new IllegalArgumentException("Name the 'property' whose keys to read, such as color_overlay");
+        }
+
+        KeyframeChannel channel = replay.properties.get(TrackId.parse(path));
+        int[] range = getRange(query);
+        JsonArray keys = new JsonArray();
+
+        if (channel != null)
+        {
+            for (Object entry : channel.getKeyframes())
+            {
+                Keyframe keyframe = (Keyframe) entry;
+                int frame = FrameGrid.nearestFrame(keyframe.getTick());
+
+                if (frame < range[0] || frame > range[1])
+                {
+                    continue;
+                }
+
+                JsonObject key = new JsonObject();
+                String text = DataToString.toString(channel.getFactory().toData(keyframe.getValue()), true);
+
+                key.addProperty("frame", frame);
+
+                try
+                {
+                    key.add("value", JsonParser.parseString(text));
+                }
+                catch (JsonParseException e)
+                {
+                    key.addProperty("value", text);
+                }
+
+                key.addProperty("interp", keyframe.getInterpolation().getInterp().getKey());
+                keys.add(key);
+            }
+        }
+
+        JsonObject json = new JsonObject();
+
+        json.addProperty("property", path);
+        json.add("keys", keys);
+
+        return json;
+    }
+
+    /** Only what is off rest, so a pose reads as short as it was written. */
+    private static JsonObject writeTransform(PoseTransform transform)
+    {
+        JsonObject json = new JsonObject();
+
+        if (transform.rotate.x != 0F || transform.rotate.y != 0F || transform.rotate.z != 0F)
+        {
+            json.add("r", vector(Math.toDegrees(transform.rotate.x), Math.toDegrees(transform.rotate.y), Math.toDegrees(transform.rotate.z)));
+        }
+
+        if (transform.translate.x != 0F || transform.translate.y != 0F || transform.translate.z != 0F)
+        {
+            json.add("t", vector(transform.translate.x, transform.translate.y, transform.translate.z));
+        }
+
+        if (transform.scale.x != 1F || transform.scale.y != 1F || transform.scale.z != 1F)
+        {
+            json.add("s", vector(transform.scale.x, transform.scale.y, transform.scale.z));
+        }
+
+        return json;
+    }
+
+    /** Rounded to a hundredth: a degree that went through radians and floats comes back as 29.999998. */
+    private static JsonArray vector(double x, double y, double z)
+    {
+        JsonArray array = new JsonArray();
+
+        array.add(Math.round(x * 100D) / 100D);
+        array.add(Math.round(y * 100D) / 100D);
+        array.add(Math.round(z * 100D) / 100D);
+
+        return array;
+    }
+
+    private static int[] getRange(Map<String, String> query)
+    {
+        try
+        {
+            return new int[] {
+                Integer.parseInt(query.getOrDefault("fromFrame", "0")),
+                Integer.parseInt(query.getOrDefault("toFrame", String.valueOf(Integer.MAX_VALUE)))
+            };
+        }
+        catch (NumberFormatException e)
+        {
+            throw new IllegalArgumentException("'fromFrame' and 'toFrame' are whole numbers");
+        }
+    }
+
     /* Keys */
 
     /**

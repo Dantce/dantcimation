@@ -106,6 +106,25 @@ it moved 117 keys, and a contact sheet then showed every impact frame on the fra
 for (26 and 27 for the first jab, nothing on 25 or 28). Camera clips are not regridded: a move
 made before this has to be removed and added again.
 
+## Pose and action library (started 22 November)
+
+- `mcp/library.json` holds poses and actions for the player rig, stored facing the model's
+  rest direction for a right-handed character; `mcp/library.mjs` expands an entry into pose
+  keys, with `turn` (anchor r.y) and `mirror`. MCP tools: `list_library`, `get_library_entry`,
+  `apply_pose`, `apply_action` (returns contact frames and where the action ends).
+- **Checked on front-view renders**: `idle`, `guard`, `jab`, `cross`.
+  **Written, not yet looked at**: `guard_up`, `guard_down`, `bob`. Side views of all are still
+  to do, and `hook`, `uppercut`, a hit reaction and locomotion are not written.
+- **Reading keys back** (bridge version 6, not yet run in the game):
+  `GET /film/actors/<i>/pose-keys` and `.../property-keys?property=`, as `get_pose_keys` and
+  `get_property_keys`. `/film` also reports each actor's `bodyYaw`.
+- Rotation signs settled on renders: `anchor`, `low_body` and `head` r.y positive turn to the
+  character's own left; an arm raised forward swings to the character's left with positive
+  r.y; `low_body` r.z positive leans to its right.
+- On the test film the character faces the locked camera at `turn` 184. That is about 33
+  degrees from what the actor's yaw and the camera position predict, which is why `bodyYaw` is
+  now reported: until that is understood, `turn` has to be found on a render.
+
 ## Impact frames: how the first ones were built
 
 On the shadow-boxing film, each punch gets 2 or 3 frames on 1s, all through the endpoints above.

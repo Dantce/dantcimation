@@ -36,7 +36,7 @@ public class Bridge implements BridgeServer.Handler
     public static final int DEFAULT_PORT = 47110;
 
     /** Bumped whenever a request or an answer changes in a way a tool cannot survive. */
-    public static final int VERSION = 5;
+    public static final int VERSION = 6;
 
     private static final int TIMEOUT_SECONDS = 10;
 
@@ -270,6 +270,16 @@ public class Bridge implements BridgeServer.Handler
         if (actor != null && actor[1].equals("rig"))
         {
             return FilmEditor.getRig(FilmEditor.getActor(film(), Integer.parseInt(actor[0])));
+        }
+
+        if (actor != null && actor[1].equals("pose-keys"))
+        {
+            return FilmEditor.getPoseKeys(FilmEditor.getActor(film(), Integer.parseInt(actor[0])), request.query());
+        }
+
+        if (actor != null && actor[1].equals("property-keys"))
+        {
+            return FilmEditor.getPropertyKeys(FilmEditor.getActor(film(), Integer.parseInt(actor[0])), request.query());
         }
 
         if (actor != null && actor[1].equals("form"))
