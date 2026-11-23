@@ -143,6 +143,12 @@ public class BBSRendering
     private static float orthoDistance = -1F;
 
     private static boolean toggleFramebuffer;
+
+    /**
+     * Dantcimation: a world render has begun this frame and {@link #onRenderBeforeScreen()} has not
+     * yet answered it. See {@link #onRenderBeforeInterface()}.
+     */
+    private static boolean handOverPending;
     private static Framebuffer framebuffer;
     private static Framebuffer clientFramebuffer;
     private static Texture texture;
@@ -535,6 +541,7 @@ public class BBSRendering
         }
 
         renderingWorld = true;
+        handOverPending = true;
 
         /* A capture deferred to after the interface never got its turn (the interface pass threw, or the
          * frame ended some other way). Unwind it here rather than starting a second frame on top of a
@@ -632,6 +639,8 @@ public class BBSRendering
          * With a BBS menu open the interface must NOT land in the export framebuffer: the film panel draws
          * its own UI at window size and blits the preview texture into it, so that path captures and restores
          * right here, before the interface is composited. */
+        handOverPending = false;
+
         if (customSize && UIScreen.getCurrentMenu() == null)
         {
             deferredCapture = true;
@@ -640,6 +649,26 @@ public class BBSRendering
         }
 
         captureAndRestore();
+    }
+
+    /**
+     * Dantcimation: runs right before the interface is composited (see {@code GameRendererMixin}),
+     * and does {@link #onRenderBeforeScreen()}'s job if nothing else has this frame.
+     *
+     * <p>That job is normally triggered from {@code InGameHud.render}: at its tail, or at its head
+     * during playback. Both assume vanilla's HUD method runs to the end on every frame. A client
+     * that draws its own HUD and cancels vanilla's (Lunar Client does) never reaches the tail, so
+     * {@code mc.framebuffer} stayed pointed at the film's off-screen framebuffer through the
+     * interface pass: the dashboard was composited into the wrong target and the world showed up
+     * unscaled in a corner of the window. The compositing call is the last moment the hand-over
+     * can still happen, and unlike the HUD it cannot be skipped by anyone who wants a picture.</p>
+     */
+    public static void onRenderBeforeInterface()
+    {
+        if (handOverPending)
+        {
+            onRenderBeforeScreen();
+        }
     }
 
     /**

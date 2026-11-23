@@ -192,6 +192,26 @@ Read from the BBS source on the `1.21.11` branch; this is what the write endpoin
   covers a known gap: a track created on the client by `getOrCreate` is otherwise not sent.
 - **Everything runs on the client thread**, as the read endpoints already do.
 
+## Running outside IntelliJ (22 November)
+
+- `gradlew build` produces `build/libs/bbs-2.7-1.21.11.jar`, which is the whole mod (BBS with
+  Dantcimation in it). The game folder is then `.minecraft`, so the bridge file is at
+  `.minecraft/config/bbs/dantcimation/bridge.json`; point the MCP server at it with
+  `DANTCIMATION_BRIDGE_FILE`.
+- **Lunar Client 1.21.11 (Fabric add-on)**: the mod loads, but the film editor drew the world
+  unscaled in a corner of the window with no interface, or flickered. No errors in the log.
+  Cause as far as it can be read from the code: BBS hands the frame back to the game's
+  framebuffer from hooks inside `InGameHud.render`, and a client that cancels vanilla's HUD never
+  reaches them. `BBSRendering.onRenderBeforeInterface` now does the hand-over right before
+  `GuiRenderer.render` if nothing else has that frame. **Not yet confirmed on Lunar.** This is
+  the third change to BBS's own code.
+- **Server resource packs**: joining a server whose pack overrides vanilla core shaders (MCC
+  Island) fails to link `bbs:pipeline/pixelart`, because that pipeline pairs vanilla's
+  `position_tex_color` vertex shader with a BBS fragment shader. Minecraft then drops every
+  selected resource pack. Not fixed: it needs BBS's own copy of the vertex shader and of
+  `dynamictransforms.glsl`, taken from the 1.21.11 jar rather than from memory. Until then,
+  keep the mod out of the profile used for multiplayer.
+
 ## Known limits
 
 - This code cannot be compiled outside a machine that can download Minecraft. Each change to a

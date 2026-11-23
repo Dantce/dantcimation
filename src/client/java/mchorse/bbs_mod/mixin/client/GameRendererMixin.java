@@ -244,6 +244,16 @@ public class GameRendererMixin
     }
 
     /**
+     * Dantcimation: the interface is about to be composited. If the HUD hooks did not hand the frame
+     * back this frame (see {@code BBSRendering.onRenderBeforeInterface}), this is the last chance to.
+     */
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/render/GuiRenderer;render(Lcom/mojang/blaze3d/buffers/GpuBufferSlice;)V"))
+    private void onBeforeInterfaceRendering(RenderTickCounter tickCounter, boolean tick, CallbackInfo info)
+    {
+        BBSRendering.onRenderBeforeInterface();
+    }
+
+    /**
      * The interface has just been composited into {@code mc.getFramebuffer()}. A world recording holds its
      * snapshot back until here so the hotbar and the rest of the HUD end up in the file, the way they did on
      * 1.21.1 when InGameHud.render still drew instead of recording into a GuiRenderState.
