@@ -18,6 +18,7 @@ import mchorse.bbs_mod.data.types.MapType;
 import mchorse.bbs_mod.film.Film;
 import mchorse.bbs_mod.film.replays.FormProperties;
 import mchorse.bbs_mod.film.replays.Replay;
+import mchorse.bbs_mod.film.replays.ReplayKeyframes;
 import mchorse.bbs_mod.film.replays.tracks.TrackId;
 import mchorse.bbs_mod.forms.FormUtils;
 import mchorse.bbs_mod.forms.forms.Form;
@@ -33,10 +34,12 @@ import mchorse.bbs_mod.utils.interps.Interpolations;
 import mchorse.bbs_mod.utils.keyframes.Keyframe;
 import mchorse.bbs_mod.utils.keyframes.KeyframeChannel;
 import mchorse.bbs_mod.utils.keyframes.factories.IKeyframeFactory;
+import mchorse.bbs_mod.utils.keyframes.factories.KeyframeFactories;
 import mchorse.bbs_mod.utils.pose.Pose;
 import mchorse.bbs_mod.utils.pose.PoseTransform;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.item.ItemStack;
 import org.joml.Vector3d;
 
 import java.util.ArrayList;
@@ -508,6 +511,117 @@ public final class FilmEditor
         refresh(panel, replay);
 
         return written(keys.size());
+    }
+
+    /**
+     * Dress the actor: its armour and what it holds in each hand. Each key holds until the next
+     * one, so a key with no item takes the piece off again.
+     *
+     * <p>An item is an id such as {@code "minecraft:diamond_axe"}, or the whole item the way
+     * Minecraft saves it — {@code {"id": ..., "count": 1, "components": {...}}} — for anything an
+     * id cannot say. {@code "glint": true} gives the item the enchanted shimmer without naming
+     * an enchantment.</p>
+     */
+    public static JsonObject setEquipment(UIFilmPanel panel, Replay replay, JsonObject body)
+    {
+        JsonArray keys = getKeys(body);
+        int[] frames = new int[keys.size()];
+        String[] slots = new String[keys.size()];
+        ItemStack[] stacks = new ItemStack[keys.size()];
+
+        /* Read everything before changing anything, so a bad key leaves the film as it was */
+        for (int i = 0; i < frames.length; i++)
+        {
+            JsonObject key = keys.get(i).getAsJsonObject();
+
+            frames[i] = getFrame(key);
+            slots[i] = getString(key, "slot", "");
+
+            if (getEquipmentChannel(replay.keyframes, slots[i]) == null)
+            {
+                throw new IllegalArgumentException("There is no slot '" + slots[i] + "'. The slots are " + String.join(", ", EQUIPMENT_SLOTS));
+            }
+
+            stacks[i] = readItem(key);
+        }
+
+        BaseValue.edit(replay.keyframes, (keyframes) ->
+        {
+            for (int i = 0; i < frames.length; i++)
+            {
+                insertConstant(getEquipmentChannel(keyframes, slots[i]), frames[i], stacks[i]);
+
+                if (slots[i].equals("mainhand"))
+                {
+                    /* The main hand is whichever hotbar cell is selected, so hold the first */
+                    insertConstant(keyframes.selectedSlot, frames[i], 0);
+                }
+            }
+        });
+
+        refresh(panel, replay);
+
+        return written(frames.length);
+    }
+
+    private static final String[] EQUIPMENT_SLOTS = {"head", "chest", "legs", "feet", "mainhand", "offhand"};
+
+    private static KeyframeChannel<ItemStack> getEquipmentChannel(ReplayKeyframes keyframes, String slot)
+    {
+        return switch (slot)
+        {
+            case "head" -> keyframes.armorHead;
+            case "chest" -> keyframes.armorChest;
+            case "legs" -> keyframes.armorLegs;
+            case "feet" -> keyframes.armorFeet;
+            case "offhand" -> keyframes.offHand;
+            case "mainhand" -> keyframes.hotbar.get(0);
+            default -> null;
+        };
+    }
+
+    private static ItemStack readItem(JsonObject key)
+    {
+        if (!key.has("item") || key.get("item").isJsonNull())
+        {
+            return ItemStack.EMPTY;
+        }
+
+        JsonElement item = key.get("item");
+        JsonObject json;
+
+        if (item.isJsonObject())
+        {
+            json = item.getAsJsonObject().deepCopy();
+        }
+        else
+        {
+            json = new JsonObject();
+            json.addProperty("id", item.getAsString());
+        }
+
+        if (!json.has("count"))
+        {
+            json.addProperty("count", 1);
+        }
+
+        if (key.has("glint") && key.get("glint").getAsBoolean())
+        {
+            JsonObject components = json.has("components") && json.get("components").isJsonObject() ? json.getAsJsonObject("components") : new JsonObject();
+
+            components.addProperty("minecraft:enchantment_glint_override", true);
+            json.add("components", components);
+        }
+
+        MapType data = DataToString.mapFromString(json.toString());
+        ItemStack stack = data == null ? ItemStack.EMPTY : KeyframeFactories.ITEM_STACK.fromData(data);
+
+        if (stack.isEmpty())
+        {
+            throw new IllegalArgumentException("Minecraft does not read " + json + " as an item. 'item' is an id such as minecraft:diamond_axe, or the item the way Minecraft saves it");
+        }
+
+        return stack;
     }
 
     /**

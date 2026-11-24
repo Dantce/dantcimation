@@ -22,7 +22,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const BRIDGE_FILE = process.env.DANTCIMATION_BRIDGE_FILE || join(HERE, "..", "run", "config", "bbs", "dantcimation", "bridge.json");
 const GUIDE_FILE = join(HERE, "guide.md");
 const PROTOCOLS = ["2025-06-18", "2025-03-26", "2024-11-05"];
-const SERVER = { name: "dantcimation", version: "0.5.0" };
+const SERVER = { name: "dantcimation", version: "0.6.0" };
 
 const INSTRUCTIONS = "Dantcimation animates characters in the BBS film that is open in Minecraft's film editor. "
     + "Call get_animation_guide once before animating: it holds the timing rules, the rig's rotation "
@@ -161,6 +161,26 @@ const TOOLS = [
         "Remove an actor's position and facing keys in a frame range: all of them, or only the named channels.",
         { actor, ...range, channels: { type: "array", items: { type: "string" }, description: "Such as [\"x\", \"y\", \"z\", \"yaw\", \"pitch\"]. Default: all." } }, ["actor"],
         async (a) => json(await bridge("POST", `/film/actors/${a.actor}/root-keys/clear`, pick(a, "fromFrame", "toFrame", "channels")))),
+
+    tool("set_equipment",
+        "Dress an actor: armour, and what it holds in each hand. Each key holds until the next one; a key with no item takes the piece off. Needs bridge 7.",
+        {
+            actor,
+            keys: {
+                type: "array", minItems: 1,
+                items: {
+                    type: "object",
+                    properties: {
+                        frame,
+                        slot: { type: "string", enum: ["head", "chest", "legs", "feet", "mainhand", "offhand"] },
+                        item: { description: "An item id such as minecraft:diamond_axe, or the item as Minecraft saves it ({id, count, components}). Leave out to empty the slot." },
+                        glint: { type: "boolean", description: "Give the item the enchanted shimmer." },
+                    },
+                    required: ["frame", "slot"],
+                },
+            },
+        }, ["actor", "keys"],
+        async (a) => json(await bridge("POST", `/film/actors/${a.actor}/equipment`, { keys: a.keys }))),
 
     tool("set_property_keys",
         "Key any property of an actor's form other than its pose: visible, color, color_overlay, lighting, transform, or a body part's property such as dca11008/color. Each key holds until the next one. get_form lists the paths.",

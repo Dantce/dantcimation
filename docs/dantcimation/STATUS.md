@@ -160,6 +160,36 @@ On the shadow-boxing film, each punch gets 2 or 3 frames on 1s, all through the 
 - Elbows and knees on `steve_bends` (confirmed on side-view renders): an elbow bends the natural
   way with positive `r.x`, a knee with negative `r.x`.
 
+## Equipment (bridge version 7; written 23 November, NOT yet built or run)
+
+`POST /film/actors/<i>/equipment` with `{keys: [{frame, slot, item, glint}]}` keys the replay's
+own equipment channels (`item_head`, `item_chest`, `item_legs`, `item_feet`, `item_off_hand`, and
+hotbar cell 0 with `selected_slot` 0 for the main hand). `item` is an id or the item as Minecraft
+saves it; it goes through `KeyframeFactories.ITEM_STACK.fromData`, so anything `ItemStack.CODEC`
+reads works. `glint` adds `minecraft:enchantment_glint_override`. Type-checked against the stubs
+only. MCP tool: `set_equipment` (server 0.6.0, 32 tools).
+
+## Found while building the "naoyamaki" scene (23 November, Lunar, bridge 6)
+
+- **Root motion judders in playback.** The film editor applies root keys at whole ticks and
+  lerps between them while playing, so root keys on the 24 fps grid stutter. Keep root keys for
+  cuts only and move the actor with per-frame keys on the form's `transform` property (blocks,
+  radians; in the actor's own space: +x screen right, +y up, +z toward a camera it faces).
+- **Hard camera cuts off the tick grid**: one `bbs:keyframe` clip for the whole film through
+  `/film/camera/moves`, with `ease: "constant"` on the key before each cut. Clip starts are whole
+  ticks, so separate clips can only cut on frames that are multiples of 6.
+- **Translucent billboards write depth.** Anything drawn later and further away is hidden, and
+  actors draw in index order: put far glows and backdrops in a low-index actor, lens overlays in
+  the last one.
+- **Textures without new files**: `minecraft:textures/...` reads the game's own (glass panes);
+  `assets:textures/default_particles.png` with `crop: [32,16,64,80], resizeCrop: true,
+  linear: true` is a soft round glow. `resizeCrop` makes the longer cropped side 1 unit.
+- **Sharp elbow bends open up** on `steve_bends` (around 100 degrees and over, seen end-on).
+  Check bent arms on a close render.
+- **World time runs** while a film is open, so lighting drifts between renders.
+- The app refuses folder access beyond `config/bbs/dantcimation`, so `config/bbs/assets` (custom
+  textures) and `config/bbs/settings` are out of reach; File Explorer is click-only.
+
 ## Next
 
 1. Turn the impact-frame build into one recipe a tool can call with a list of contact frames.

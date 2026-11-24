@@ -169,6 +169,14 @@ terms. From `get_status` take the camera:
 The backdrop is only right from the camera it was built for. Build it after the film's camera
 is settled.
 
+## Armour and held items
+
+`set_equipment` dresses an actor: slots `head`, `chest`, `legs`, `feet`, `mainhand`, `offhand`.
+An item is an id (`minecraft:diamond_chestplate`) or the item as Minecraft saves it, and
+`glint: true` gives it the enchanted shimmer without naming an enchantment. A key holds until
+the next one; a key with no item empties the slot. The player models show armour and both
+hands. Needs bridge 7.
+
 ## Limits to be honest about
 
 - `render_frames` needs the film editor open on screen; with it closed the picture is stale.

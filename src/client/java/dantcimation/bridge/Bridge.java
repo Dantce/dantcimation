@@ -36,7 +36,7 @@ public class Bridge implements BridgeServer.Handler
     public static final int DEFAULT_PORT = 47110;
 
     /** Bumped whenever a request or an answer changes in a way a tool cannot survive. */
-    public static final int VERSION = 6;
+    public static final int VERSION = 7;
 
     private static final int TIMEOUT_SECONDS = 10;
 
@@ -358,6 +358,7 @@ public class Bridge implements BridgeServer.Handler
             case "root-keys/clear" -> FilmEditor.clearRootKeys(panel, replay, body);
             case "property-keys" -> FilmEditor.setPropertyKeys(panel, replay, body);
             case "property-keys/clear" -> FilmEditor.clearPropertyKeys(panel, replay, body);
+            case "equipment" -> FilmEditor.setEquipment(panel, replay, body);
             case "form" -> FilmEditor.setForm(panel, replay, body);
             case "remove" -> FilmEditor.removeActor(panel, film, replay);
             default -> null;

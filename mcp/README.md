@@ -47,7 +47,7 @@ For Claude Code: `claude mcp add dantcimation -- node /path/to/dantcimation/mcp/
 
 `get_animation_guide`, `get_status`, `list_models`, `get_film`, `validate_film`, `add_actor`,
 `remove_actor`, `get_rig`, `get_form`, `set_form`, `set_pose_keys`, `clear_pose_keys`,
-`get_pose_keys`, `set_root_keys`, `clear_root_keys`, `set_property_keys`, `get_property_keys`,
+`get_pose_keys`, `set_root_keys`, `clear_root_keys`, `set_property_keys`, `get_property_keys`, `set_equipment`,
 `clear_property_keys`, `list_library`, `get_library_entry`, `get_facing_turn`, `apply_pose`,
 `apply_action`,
 `get_camera`,

@@ -111,7 +111,7 @@ check("ping", JSON.stringify((await request("ping")).result) === "{}");
 const list = await request("tools/list");
 const names = list.result.tools.map((entry) => entry.name);
 
-check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 31, names);
+check("tools/list has the tools", names.includes("set_pose_keys") && names.includes("render_frames") && names.length === 32, names);
 check("every tool has a schema and a description", list.result.tools.every((entry) => entry.inputSchema?.type === "object" && entry.description.length > 20));
 
 const guide = await call("get_animation_guide", {});
